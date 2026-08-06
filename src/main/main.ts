@@ -3,8 +3,9 @@ import path from "node:path";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { startOAuthLogin } from "./oauthProviders.js";
 import { clearProviderAuth, getSettings, setMenuBarDisplayMode, setProviderVisibility } from "./settingsStore.js";
+import { getTrayTitle } from "./trayTitle.js";
 import { fetchUsageSnapshot } from "./usageProviders.js";
-import { PROVIDERS, ProviderId, UsageSnapshot } from "../shared/types.js";
+import { ProviderId, UsageSnapshot } from "../shared/types.js";
 
 const isDev = !app.isPackaged;
 
@@ -112,14 +113,7 @@ function toggleWindow() {
 }
 
 function updateTray(snapshot: UsageSnapshot) {
-  const activeUsage = snapshot.usage.filter((usage) => usage.status !== "signed-out");
-  const average = activeUsage.length
-    ? Math.round(activeUsage.reduce((sum, usage) => sum + usage.percent, 0) / activeUsage.length)
-    : 0;
-  const visibleProviders = PROVIDERS.filter((provider) => snapshot.settings.providers[provider.id].visible);
-  const icons = visibleProviders.map((provider) => provider.label[0]).join("");
-
-  tray?.setTitle(snapshot.settings.menuBarDisplayMode === "iconsWithPercent" ? `${icons || "AI"} ${average}%` : icons || "AI");
+  tray?.setTitle(getTrayTitle(snapshot));
   tray?.setToolTip("AI 사용량 위젯");
 }
 
