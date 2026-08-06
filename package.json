@@ -1,7 +1,7 @@
 {
-  "name": "ai-agent-usage-widget-for-mac",
+  "name": "quota-bar",
   "version": "0.1.0",
-  "description": "macOS menu bar widget for monitoring AI agent usage.",
+  "description": "macOS menu bar app for monitoring AI quota usage.",
   "main": "dist/main/main/main.js",
   "scripts": {
     "dev": "npm run build:main && concurrently -k \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on tcp:5173 dist/main/main/main.js && env -u ELECTRON_RUN_AS_NODE electron .\"",
@@ -46,7 +46,7 @@
   },
   "build": {
     "appId": "com.apg0001.aiusagewidget",
-    "productName": "AI Usage Widget",
+    "productName": "Quota Bar",
     "files": [
       "dist/**/*",
       "package.json"
