@@ -269,15 +269,13 @@ footer,
 
 .login-guide,
 .provider-help,
-.reset-time,
-.source-note {
+.reset-time {
   margin: 0;
   color: #64748b;
   font-size: 11px;
   line-height: 1.45;
 }
 
-.source-note,
 .reset-time {
   color: #334155;
   font-weight: 800;
@@ -315,37 +313,44 @@ footer {
   font-size: 12px;
 }
 
-.window-grid {
+.usage-window-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
 }
 
-.window-chip {
-  min-height: 54px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #f8fafc;
-  padding: 7px;
+.usage-window {
+  min-height: 72px;
   display: grid;
-  align-content: center;
-  gap: 2px;
+  grid-template-rows: auto 8px auto;
+  gap: 8px;
+  padding: 2px 0;
 }
 
-.window-chip span,
-.window-chip small {
+.usage-window.single {
+  min-height: 60px;
+}
+
+.usage-window-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.usage-window-heading span,
+.usage-window small {
   min-width: 0;
   overflow: hidden;
   color: #64748b;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.window-chip strong {
+.usage-window-heading strong {
   color: #111827;
-  font-size: 14px;
+  font-size: 18px;
 }
 
 .status-badge {

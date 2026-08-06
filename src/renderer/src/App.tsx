@@ -12,16 +12,9 @@ const statusLabel: Record<ProviderUsage["status"], string> = {
 };
 
 const loginHelp: Record<ProviderId, string> = {
-  codex: "Codex CLI/확장 세션이 있으면 자동 연결됩니다. 필요하면 토큰을 저장할 수 있습니다.",
-  claude: "Claude Code 세션이 있으면 자동 연결됩니다. 필요하면 토큰을 저장할 수 있습니다.",
-  gemini: "Gemini CLI OAuth 세션이 있으면 자동 감지됩니다. 앱에서는 Google OAuth로 로그인합니다."
-};
-
-const sourceDescription: Record<NonNullable<ProviderUsage["source"]>, string> = {
-  api: "API로 연결됨",
-  demo: "데모 데이터",
-  local: "로컬 세션으로 연결됨",
-  token: "토큰으로 연결됨"
+  codex: "Codex CLI 로그인이 없으면 토큰을 저장할 수 있습니다.",
+  claude: "Claude Code에서 로그인하면 자동으로 확인합니다.",
+  gemini: "Gemini는 Google OAuth로 로그인합니다."
 };
 
 function TokenLoginForm({
@@ -111,13 +104,17 @@ function UsageRow({
   const hasSavedAuth = Boolean(savedAuth);
   const isConnected = hasSavedAuth || usage.source === "local" || usage.source === "api" || usage.source === "token";
   const canUseOAuth = usage.provider === "gemini";
+  const canUseToken = usage.provider === "codex";
+  const windows = usage.windows ?? [];
+  const hasWindows = windows.length > 0;
+  const helperMessage = usage.status === "signed-out" || usage.status === "error" || usage.provider === "gemini" ? usage.message : undefined;
 
   return (
     <section className={`usage-row ${usage.status}`}>
       <div className="row-top">
         <div>
           <h2>{usage.label}</h2>
-          <p>{usage.message ?? `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()} ${usage.unit}`}</p>
+          {helperMessage ? <p>{helperMessage}</p> : null}
         </div>
         {hasSavedAuth ? (
           <button className="card-auth-button logout" type="button" onClick={() => onLogout(usage.provider)} disabled={busy}>
@@ -129,33 +126,38 @@ function UsageRow({
       {!isConnected && canUseOAuth ? (
         <OAuthLoginButton provider={usage.provider} busy={busy} onOAuthLogin={onOAuthLogin} />
       ) : null}
-      {!isConnected && !canUseOAuth ? (
+      {!isConnected && canUseToken ? (
         <TokenLoginForm provider={usage.provider} busy={busy} onTokenLogin={onTokenLogin} />
       ) : null}
-      {isConnected && !hasSavedAuth ? (
-        <p className="source-note">{sourceDescription[usage.source ?? "local"]}</p>
-      ) : null}
       <strong className="status-badge">{statusLabel[usage.status]}</strong>
-      <div className="meter" aria-label={`${usage.label} 사용률 ${usage.percent}%`}>
-        <span style={{ width: `${usage.percent}%` }} />
-      </div>
-      <div className="row-bottom">
-        <span>{usage.percent}%</span>
-        <span>{formatTime(usage.updatedAt)}</span>
-      </div>
-      {usage.resetRemaining ? <p className="reset-time">초기화까지 {usage.resetRemaining}</p> : null}
-      {usage.windows?.length ? (
-        <div className="window-grid" aria-label={`${usage.label} 기간별 사용량`}>
-          {usage.windows.map((window) => (
-            <div key={window.id} className="window-chip">
-              <span>{window.label}</span>
-              <strong>{window.percent}%</strong>
-              {window.resetRemaining ? <small>초기화 {window.resetRemaining}</small> : null}
+      {hasWindows ? (
+        <div className="usage-window-list" aria-label={`${usage.label} 기간별 사용량`}>
+          {windows.map((window) => (
+            <div key={window.id} className="usage-window">
+              <div className="usage-window-heading">
+                <span>{window.label}</span>
+                <strong>{window.percent}%</strong>
+              </div>
+              <div className="meter" aria-label={`${usage.label} ${window.label} 사용률 ${window.percent}%`}>
+                <span style={{ width: `${window.percent}%` }} />
+              </div>
+              <small>{window.message ?? (window.resetRemaining ? `초기화까지 ${window.resetRemaining}` : "초기화 시간 없음")}</small>
             </div>
           ))}
         </div>
-      ) : null}
-      <p className="provider-help">{help}</p>
+      ) : (
+        <div className="usage-window single">
+          <div className="usage-window-heading">
+            <span>사용량</span>
+            <strong>{usage.percent}%</strong>
+          </div>
+          <div className="meter" aria-label={`${usage.label} 사용률 ${usage.percent}%`}>
+            <span style={{ width: `${usage.percent}%` }} />
+          </div>
+          <small>{usage.resetRemaining ? `초기화까지 ${usage.resetRemaining}` : formatTime(usage.updatedAt)}</small>
+        </div>
+      )}
+      {!isConnected ? <p className="provider-help">{help}</p> : null}
     </section>
   );
 }
