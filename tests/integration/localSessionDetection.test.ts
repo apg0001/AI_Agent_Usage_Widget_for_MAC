@@ -15,6 +15,8 @@ describe("로컬 세션 및 기간별 사용량 연결", () => {
     expect(usageProviders).toContain("claude-code/2.1.121");
     expect(usageProviders).toContain(".gemini");
     expect(usageProviders).toContain("windows");
+    expect(usageProviders).toContain("windowLabel");
+    expect(usageProviders).toContain("lastSuccessfulUsage");
     expect(renderer).toContain("Google OAuth 로그인");
     expect(renderer).toContain("기간별 사용량");
     expect(renderer).toContain("usage-window-list");

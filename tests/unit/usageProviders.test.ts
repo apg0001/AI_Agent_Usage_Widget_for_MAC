@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fetchUsageSnapshot } from "../../src/main/usageProviders";
+import { fetchUsageSnapshot, formatRemaining, windowLabel } from "../../src/main/usageProviders";
 import { AppSettings } from "../../src/shared/types";
 
 const baseSettings: AppSettings = {
@@ -13,6 +13,16 @@ const baseSettings: AppSettings = {
 };
 
 describe("fetchUsageSnapshot", () => {
+  it("초기화까지 24시간보다 크면 일/시간/분으로 표시한다", () => {
+    const resetsAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000 + 4 * 60 * 1000).toISOString();
+
+    expect(formatRemaining(resetsAt)).toMatch(/^2일 3시간 [45]분$/);
+  });
+
+  it("Codex가 7일 사용량 창을 주간 한도로 표시한다", () => {
+    expect(windowLabel(604_800, "한도")).toBe("주간 한도");
+  });
+
   it("표시 설정이 켜진 제공자만 반환한다", async () => {
     const usage = await fetchUsageSnapshot({
       ...baseSettings,

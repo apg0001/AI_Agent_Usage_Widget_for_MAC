@@ -19,7 +19,11 @@ type UsageWindowInput = {
   message?: string;
 };
 
-function formatRemaining(resetsAt?: string) {
+type UsageResult = Omit<ProviderUsage, "provider" | "label" | "updatedAt">;
+
+const lastSuccessfulUsage = new Map<ProviderId, UsageResult>();
+
+export function formatRemaining(resetsAt?: string) {
   if (!resetsAt) {
     return undefined;
   }
@@ -32,10 +36,15 @@ function formatRemaining(resetsAt?: string) {
     return "초기화 중";
   }
 
-  const minutes = Math.ceil(diffMs / 60_000);
-  const hours = Math.floor(minutes / 60);
-  const restMinutes = minutes % 60;
-  return hours > 0 ? `${hours}시간 ${restMinutes}분` : `${restMinutes}분`;
+  const totalMinutes = Math.ceil(diffMs / 60_000);
+  const days = Math.floor(totalMinutes / 1_440);
+  const hours = Math.floor((totalMinutes % 1_440) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}일 ${hours}시간 ${minutes}분`;
+  }
+  return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
 }
 
 function withReset<T extends Omit<ProviderUsage, "provider" | "label" | "updatedAt">>(usage: T): T {
@@ -65,6 +74,23 @@ function unixSecondsToIso(value?: number) {
   return typeof value === "number" ? new Date(value * 1000).toISOString() : undefined;
 }
 
+export function windowLabel(windowSeconds?: number, fallback = "한도") {
+  if (!windowSeconds) {
+    return fallback;
+  }
+
+  if (windowSeconds >= 6 * 24 * 60 * 60) {
+    return "주간 한도";
+  }
+  if (windowSeconds >= 24 * 60 * 60) {
+    return `${Math.round(windowSeconds / 86_400)}일 한도`;
+  }
+  if (windowSeconds >= 60 * 60) {
+    return `${Math.round(windowSeconds / 3_600)}시간 한도`;
+  }
+  return `${Math.round(windowSeconds / 60)}분 한도`;
+}
+
 function createWindow(input: UsageWindowInput): UsageLimitWindow {
   return {
     ...input,
@@ -83,9 +109,38 @@ function createMissingWindow(id: "primary" | "weekly", label: string): UsageLimi
 }
 
 function ensureLimitWindows(windows: UsageLimitWindow[]): UsageLimitWindow[] {
-  const primary = windows.find((window) => window.id === "primary") ?? createMissingWindow("primary", "5시간 한도");
-  const weekly = windows.find((window) => window.id === "weekly") ?? createMissingWindow("weekly", "주간 한도");
-  return [primary, weekly];
+  const primary = windows.find((window) => window.id === "primary");
+  const weekly = windows.find((window) => window.id === "weekly");
+  if (!primary && !weekly) {
+    return [createMissingWindow("primary", "한도"), createMissingWindow("weekly", "주간 한도")];
+  }
+  if (primary?.label === "주간 한도" && !weekly) {
+    return [primary];
+  }
+  return [primary ?? createMissingWindow("primary", "한도"), weekly ?? createMissingWindow("weekly", "주간 한도")];
+}
+
+function shouldCacheUsage(usage: UsageResult) {
+  return usage.status !== "signed-out" && usage.status !== "error";
+}
+
+function rememberUsage(provider: ProviderId, usage: UsageResult) {
+  if (shouldCacheUsage(usage)) {
+    lastSuccessfulUsage.set(provider, usage);
+  }
+  return usage;
+}
+
+function readLastSuccessfulUsage(provider: ProviderId) {
+  const usage = lastSuccessfulUsage.get(provider);
+  if (!usage) {
+    return null;
+  }
+  if (usage.resetsAt && new Date(usage.resetsAt).getTime() <= Date.now()) {
+    lastSuccessfulUsage.delete(provider);
+    return null;
+  }
+  return usage;
 }
 
 function isUsageWindow(window: UsageLimitWindow | null): window is UsageLimitWindow {
@@ -180,8 +235,18 @@ function readLatestCodexUsage() {
           timestamp?: string;
           payload?: {
             rate_limits?: {
-              primary?: { used_percent?: number; resets_at?: number; resets_in_seconds?: number };
-              secondary?: { used_percent?: number; resets_at?: number; resets_in_seconds?: number };
+              primary?: {
+                used_percent?: number;
+                resets_at?: number;
+                resets_in_seconds?: number;
+                window_minutes?: number;
+              };
+              secondary?: {
+                used_percent?: number;
+                resets_at?: number;
+                resets_in_seconds?: number;
+                window_minutes?: number;
+              };
               plan_type?: string;
             };
           };
@@ -205,7 +270,10 @@ function readLatestCodexUsage() {
           primary && typeof primary.used_percent === "number"
             ? createWindow({
                 id: "primary",
-                label: "5시간 한도",
+                label: windowLabel(
+                  typeof primary.window_minutes === "number" ? primary.window_minutes * 60 : undefined,
+                  "한도"
+                ),
                 percent: primary.used_percent,
                 resetsAt:
                   unixSecondsToIso(primary.resets_at) ??
@@ -217,7 +285,10 @@ function readLatestCodexUsage() {
           secondary && typeof secondary.used_percent === "number"
             ? createWindow({
                 id: "weekly",
-                label: "주간 한도",
+                label: windowLabel(
+                  typeof secondary.window_minutes === "number" ? secondary.window_minutes * 60 : undefined,
+                  "주간 한도"
+                ),
                 percent: secondary.used_percent,
                 resetsAt:
                   unixSecondsToIso(secondary.resets_at) ??
@@ -284,8 +355,8 @@ async function fetchCodexUsage() {
   const data = (await response.json()) as {
     plan_type?: string;
     rate_limit?: {
-      primary_window?: { used_percent?: number; reset_at?: number };
-      secondary_window?: { used_percent?: number; reset_at?: number };
+      primary_window?: { used_percent?: number; reset_at?: number; limit_window_seconds?: number };
+      secondary_window?: { used_percent?: number; reset_at?: number; limit_window_seconds?: number };
     };
   };
   const primary = data.rate_limit?.primary_window;
@@ -301,7 +372,7 @@ async function fetchCodexUsage() {
     primary && typeof primary.used_percent === "number"
       ? createWindow({
           id: "primary",
-          label: "5시간 한도",
+          label: windowLabel(primary.limit_window_seconds, "한도"),
           percent: primary.used_percent,
           resetsAt: unixSecondsToIso(primary.reset_at)
         })
@@ -309,7 +380,7 @@ async function fetchCodexUsage() {
     weekly && typeof weekly.used_percent === "number"
       ? createWindow({
           id: "weekly",
-          label: "주간 한도",
+          label: windowLabel(weekly.limit_window_seconds, "주간 한도"),
           percent: weekly.used_percent,
           resetsAt: unixSecondsToIso(weekly.reset_at)
         })
@@ -542,7 +613,7 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
       const codexUsage = isLocalProviderDetectionEnabled()
         ? (await fetchCodexUsage().catch(() => null)) ?? readLatestCodexUsage()
         : null;
-      return codexUsage ?? seededUsage(provider.id, credential);
+      return codexUsage ? rememberUsage(provider.id, codexUsage) : readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, credential);
     }
     if (provider.id === "claude") {
       const claudeUsage = credential
@@ -550,7 +621,7 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
         : isLocalProviderDetectionEnabled()
           ? await fetchClaudeUsage().catch(() => null)
           : null;
-      return claudeUsage ?? seededUsage(provider.id, undefined);
+      return claudeUsage ? rememberUsage(provider.id, claudeUsage) : readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, undefined);
     }
     if (provider.id === "gemini") {
       return (
