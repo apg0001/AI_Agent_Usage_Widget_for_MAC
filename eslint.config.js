@@ -22,6 +22,7 @@ export default [
         document: "readonly",
         HTMLFormElement: "readonly",
         HTMLElement: "readonly",
+        process: "readonly",
         setInterval: "readonly",
         clearInterval: "readonly"
       }

@@ -135,14 +135,15 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   tray = new Tray(createTrayIcon());
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "AI 사용량 열기", click: toggleWindow },
-      { type: "separator" },
-      { label: "종료", click: () => app.quit() }
-    ])
-  );
+  const trayMenu = Menu.buildFromTemplate([
+    { label: "AI 사용량 열기", click: toggleWindow },
+    { type: "separator" },
+    { label: "종료", click: () => app.quit() }
+  ]);
   tray.on("click", toggleWindow);
+  tray.on("right-click", () => {
+    tray?.popUpContextMenu(trayMenu);
+  });
   void refreshUsage();
   restartRefreshTimer();
 });
