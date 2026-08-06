@@ -12,6 +12,7 @@ macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인
 - 수동 새로고침 및 앱 종료
 
 현재 사용량 값은 데모 adapter에서 생성합니다. 실제 서비스 API가 확정되면 `src/main/usageProviders.ts`의 provider adapter를 교체하면 됩니다.
+현재 로그인 값은 앱 userData 디렉터리의 JSON 설정 파일에 저장합니다. 배포 전에는 macOS Keychain 또는 OAuth 세션 저장 방식으로 바꾸는 것을 권장합니다.
 
 ## 실행
 
@@ -48,6 +49,7 @@ npm run verify
 
 - 실제 Codex, Claude, Gemini 사용량 API 연결
 - macOS Keychain 기반 토큰 저장
+- 브라우저 기반 OAuth 로그인 및 앱 callback 처리
 - 사용량 임계치 알림
 - 일/주/月 사용량 추세
 - 자동 시작 로그인 항목 등록
