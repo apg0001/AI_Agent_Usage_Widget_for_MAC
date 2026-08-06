@@ -1,0 +1,289 @@
+:root {
+  color: #111827;
+  background: transparent;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 360px;
+  min-height: 540px;
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  width: 100vw;
+  height: 100vh;
+  padding: 18px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.92);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.titlebar,
+.row-top,
+.row-bottom,
+footer,
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.titlebar p,
+.titlebar h1,
+.usage-row h2,
+.usage-row p {
+  margin: 0;
+}
+
+.titlebar p {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.titlebar h1 {
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar button,
+.login-form button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.toolbar button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.provider-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.provider-tabs > button {
+  height: 50px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.provider-tabs > button.active {
+  border-color: #2563eb;
+  box-shadow: inset 0 0 0 1px #2563eb;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+}
+
+.switch span {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+}
+
+.switch input:checked + span {
+  border-color: #059669;
+  background: #059669;
+}
+
+.account-panel {
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 0;
+  display: grid;
+  gap: 10px;
+}
+
+.panel-heading {
+  justify-content: flex-start;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.login-form {
+  display: grid;
+  grid-template-columns: 1fr 36px;
+  gap: 8px;
+}
+
+.login-form input {
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 12px;
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.logout {
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.usage-list {
+  flex: 1;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.usage-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.usage-row h2 {
+  font-size: 15px;
+}
+
+.usage-row p,
+.row-bottom,
+footer {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.usage-row strong {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 11px;
+}
+
+.usage-row.warning strong {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.usage-row.critical strong,
+.usage-row.error strong {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.usage-row.signed-out strong {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  transition: width 180ms ease;
+}
+
+.warning .meter span {
+  background: #f59e0b;
+}
+
+.critical .meter span,
+.error .meter span {
+  background: #dc2626;
+}
+
+.signed-out .meter span {
+  background: #94a3b8;
+}
+
+.empty {
+  min-height: 140px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+footer {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
