@@ -11,8 +11,8 @@
 
 body {
   margin: 0;
-  min-width: 360px;
-  min-height: 540px;
+  min-width: 400px;
+  min-height: 620px;
   overflow: hidden;
   background: #f8fafc;
 }
@@ -134,14 +134,6 @@ footer,
   background: #059669;
 }
 
-.account-panel {
-  border-top: 1px solid #e2e8f0;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 12px 0;
-  display: grid;
-  gap: 10px;
-}
-
 .panel-heading {
   justify-content: flex-start;
   color: #334155;
@@ -149,41 +141,9 @@ footer,
   font-weight: 800;
 }
 
-.login-form {
-  display: grid;
-  grid-template-columns: 1fr 36px;
-  gap: 8px;
-}
-
-.login-form input {
-  min-width: 0;
-  height: 36px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 0 12px;
-  outline: none;
-}
-
-.login-form input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
-.account-actions {
-  display: grid;
-  gap: 8px;
-}
-
-.account-actions p {
-  margin: 0;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.logout,
-.oauth-login {
-  height: 36px;
+.card-auth-button {
+  min-width: 76px;
+  height: 30px;
   border: 0;
   border-radius: 8px;
   display: flex;
@@ -191,6 +151,7 @@ footer,
   justify-content: center;
   gap: 8px;
   font-weight: 800;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -204,33 +165,52 @@ footer,
   color: #ffffff;
 }
 
-.oauth-login:disabled {
+.card-auth-button:disabled {
   cursor: progress;
   opacity: 0.7;
 }
 
-details {
-  display: grid;
-  gap: 8px;
-}
-
-summary {
-  color: #475569;
-  cursor: pointer;
+.display-panel {
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.display-panel > span {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.segmented {
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: repeat(2, 86px);
+  padding: 3px;
+  gap: 3px;
+}
+
+.segmented button {
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
   font-size: 12px;
   font-weight: 800;
-  list-style: none;
 }
 
-summary::-webkit-details-marker {
-  display: none;
-}
-
-details[open] summary {
-  margin-bottom: 8px;
+.segmented button.active {
+  background: #111827;
+  color: #ffffff;
 }
 
 .notice {
@@ -268,7 +248,8 @@ footer {
   font-size: 12px;
 }
 
-.usage-row strong {
+.status-badge {
+  width: max-content;
   border-radius: 999px;
   padding: 4px 8px;
   background: #e0f2fe;

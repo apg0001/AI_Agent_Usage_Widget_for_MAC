@@ -3,11 +3,11 @@ import { AppSettings, ProviderId, ProviderUsage, PROVIDERS } from "../shared/typ
 type ProviderAdapter = {
   id: ProviderId;
   label: string;
-  fetchUsage: (token?: string) => Promise<Omit<ProviderUsage, "provider" | "label" | "updatedAt">>;
+  fetchUsage: (credential?: string) => Promise<Omit<ProviderUsage, "provider" | "label" | "updatedAt">>;
 };
 
-function seededUsage(provider: ProviderId, token?: string) {
-  if (!token) {
+function seededUsage(provider: ProviderId, credential?: string) {
+  if (!credential) {
     return {
       used: 0,
       limit: 0,
@@ -18,7 +18,7 @@ function seededUsage(provider: ProviderId, token?: string) {
     };
   }
 
-  const seed = Array.from(`${provider}:${token}:${new Date().getMinutes()}`).reduce(
+  const seed = Array.from(`${provider}:${credential}:${new Date().getMinutes()}`).reduce(
     (sum, char) => sum + char.charCodeAt(0),
     0
   );
@@ -38,7 +38,7 @@ function seededUsage(provider: ProviderId, token?: string) {
 
 const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
   ...provider,
-  fetchUsage: async (token?: string) => seededUsage(provider.id, token)
+  fetchUsage: async (credential?: string) => seededUsage(provider.id, credential)
 }));
 
 export async function fetchUsageSnapshot(settings: AppSettings): Promise<ProviderUsage[]> {

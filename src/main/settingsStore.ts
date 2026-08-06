@@ -9,6 +9,7 @@ type StoreShape = {
 
 const defaultSettings: AppSettings = {
   refreshIntervalMs: 10_000,
+  menuBarDisplayMode: "icons",
   providers: {
     codex: { visible: true },
     claude: { visible: true },
@@ -30,14 +31,14 @@ function readStore(): StoreShape {
 
   try {
     const parsed = JSON.parse(readFileSync(storePath, "utf8")) as Partial<StoreShape>;
-    const providers = {
+    const providers: AppSettings["providers"] = {
       ...defaultSettings.providers,
       ...parsed.settings?.providers
     };
 
     for (const provider of Object.keys(providers) as ProviderId[]) {
-      if (providers[provider].token && !providers[provider].auth) {
-        delete providers[provider].token;
+      if (providers[provider].auth?.type !== "oauth") {
+        delete providers[provider].auth;
       }
     }
 
@@ -82,29 +83,17 @@ export function setProviderVisibility(provider: ProviderId, visible: boolean): A
   });
 }
 
-export function setProviderToken(provider: ProviderId, token: string): AppSettings {
+export function setMenuBarDisplayMode(menuBarDisplayMode: AppSettings["menuBarDisplayMode"]): AppSettings {
   const settings = getSettings();
   return saveSettings({
     ...settings,
-    providers: {
-      ...settings.providers,
-      [provider]: {
-        ...settings.providers[provider],
-        token,
-        auth: {
-          type: "api-key",
-          accessToken: token,
-          accountLabel: "API 키"
-        }
-      }
-    }
+    menuBarDisplayMode
   });
 }
 
-export function clearProviderToken(provider: ProviderId): AppSettings {
+export function clearProviderAuth(provider: ProviderId): AppSettings {
   const settings = getSettings();
   const nextProvider = { ...settings.providers[provider] };
-  delete nextProvider.token;
   delete nextProvider.auth;
 
   return saveSettings({

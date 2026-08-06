@@ -15,11 +15,10 @@ export type ProviderUsage = {
 export type ProviderSettings = {
   visible: boolean;
   auth?: ProviderAuth;
-  token?: string;
 };
 
 export type ProviderAuth = {
-  type: "api-key" | "oauth";
+  type: "oauth";
   accessToken?: string;
   refreshToken?: string;
   expiresAt?: string;
@@ -28,17 +27,13 @@ export type ProviderAuth = {
 
 export type AppSettings = {
   refreshIntervalMs: number;
+  menuBarDisplayMode: "icons" | "iconsWithPercent";
   providers: Record<ProviderId, ProviderSettings>;
 };
 
 export type UsageSnapshot = {
   settings: AppSettings;
   usage: ProviderUsage[];
-};
-
-export type LoginPayload = {
-  provider: ProviderId;
-  token: string;
 };
 
 export type OAuthLoginResult = {
