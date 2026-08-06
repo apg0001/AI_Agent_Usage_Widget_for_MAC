@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getRendererIndexPath } from "./rendererPath.js";
 import { clearProviderToken, getSettings, setProviderToken, setProviderVisibility } from "./settingsStore.js";
 import { fetchUsageSnapshot } from "./usageProviders.js";
 import { LoginPayload, ProviderId, UsageSnapshot } from "../shared/types.js";
@@ -46,7 +47,7 @@ function createWindow() {
   if (isDev) {
     void window.loadURL("http://127.0.0.1:5173");
   } else {
-    void window.loadFile(path.join(__dirname, "../renderer/index.html"));
+    void window.loadFile(getRendererIndexPath(__dirname));
   }
 
   window.on("blur", () => {
