@@ -19,6 +19,23 @@ function tokenLogin(settings: AppSettings, provider: keyof AppSettings["provider
   };
 }
 
+function oauthLogin(settings: AppSettings, provider: keyof AppSettings["providers"], accessToken: string): AppSettings {
+  return {
+    ...settings,
+    providers: {
+      ...settings.providers,
+      [provider]: {
+        ...settings.providers[provider],
+        auth: {
+          type: "oauth",
+          accessToken,
+          accountLabel: "Google OAuth"
+        }
+      }
+    }
+  };
+}
+
 function logout(settings: AppSettings, provider: keyof AppSettings["providers"]): AppSettings {
   const nextProvider = { ...settings.providers[provider] };
   delete nextProvider.auth;
@@ -58,7 +75,7 @@ describe("제공자 설정 흐름", () => {
     };
 
     settings = tokenLogin(settings, "codex", "codex-token");
-    settings = tokenLogin(settings, "gemini", "gemini-token");
+    settings = oauthLogin(settings, "gemini", "gemini-oauth-token");
     settings = setVisible(settings, "claude", false);
 
     let usage = await fetchUsageSnapshot(settings);

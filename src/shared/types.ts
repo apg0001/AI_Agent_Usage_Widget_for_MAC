@@ -10,6 +10,19 @@ export type ProviderUsage = {
   status: "ok" | "warning" | "critical" | "signed-out" | "error";
   updatedAt: string;
   message?: string;
+  resetsAt?: string;
+  resetRemaining?: string;
+  source?: "demo" | "local" | "api" | "token";
+  windows?: UsageLimitWindow[];
+};
+
+export type UsageLimitWindow = {
+  id: "primary" | "daily" | "weekly";
+  label: string;
+  percent: number;
+  resetsAt?: string;
+  resetRemaining?: string;
+  message?: string;
 };
 
 export type ProviderSettings = {

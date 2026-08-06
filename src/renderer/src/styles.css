@@ -176,7 +176,8 @@ footer,
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
-.token-login-form button {
+.token-login-form button,
+.oauth-login-button {
   height: 34px;
   border: 0;
   border-radius: 8px;
@@ -191,7 +192,12 @@ footer,
   font-weight: 800;
 }
 
-.token-login-form button:disabled {
+.oauth-login-button {
+  width: 100%;
+}
+
+.token-login-form button:disabled,
+.oauth-login-button:disabled {
   cursor: progress;
   opacity: 0.7;
 }
@@ -262,11 +268,19 @@ footer,
 }
 
 .login-guide,
-.provider-help {
+.provider-help,
+.reset-time,
+.source-note {
   margin: 0;
   color: #64748b;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.source-note,
+.reset-time {
+  color: #334155;
+  font-weight: 800;
 }
 
 .login-guide {
@@ -299,6 +313,39 @@ footer,
 footer {
   color: #64748b;
   font-size: 12px;
+}
+
+.window-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.window-chip {
+  min-height: 54px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 7px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.window-chip span,
+.window-chip small {
+  min-width: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-chip strong {
+  color: #111827;
+  font-size: 14px;
 }
 
 .status-badge {
