@@ -1,6 +1,6 @@
-# Quota Bar for macOS
+# Quota Bar
 
-macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인하는 Electron 기반 Quota Bar입니다.
+macOS 메뉴바, Windows 시스템 트레이, Linux status tray에서 Codex, Claude, Gemini 사용량을 빠르게 확인하는 Electron 기반 Quota Bar입니다.
 
 ## 주요 기능
 
@@ -17,7 +17,7 @@ macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인
 로컬 세션 자동 감지:
 
 - Codex: `~/.codex/auth.json` access token으로 `https://chatgpt.com/backend-api/wham/usage`를 호출합니다. 실패하면 `~/.codex/sessions`의 rate limit 기록에서 사용률과 초기화 시간을 읽습니다.
-- Claude: Claude Code가 저장한 로컬 OAuth 세션 또는 macOS Keychain을 사용해 Anthropic usage API를 호출합니다. 5시간/주간 창과 초기화 시간을 표시합니다.
+- Claude: Claude Code가 저장한 로컬 OAuth 세션을 우선 사용합니다. macOS에서는 Keychain fallback도 사용해 Anthropic usage API를 호출합니다. 5시간/주간 창과 초기화 시간을 표시합니다.
 - Gemini: `~/.gemini/oauth_creds.json` 로그인 상태를 감지합니다. 다만 2026년 6월 18일부터 Gemini CLI의 개인 계정 Google 로그인은 Antigravity CLI 전환 대상입니다. 기존 세션이 없으면 Antigravity CLI 전환 또는 API key 흐름이 필요합니다.
 
 기간별 사용량:
@@ -49,6 +49,31 @@ npm install
 npm run dev
 ```
 
+## 플랫폼별 빌드
+
+공통 사용량 계산, API 파싱, UI는 `src/shared`, `src/main`, `src/renderer`에 두고 OS별 처리는 `src/main/platform` 아래 어댑터로 분리합니다.
+
+- macOS: `src/main/platform/mac.ts`
+- Windows: `src/main/platform/windows.ts`
+- Linux: `src/main/platform/linux.ts`
+
+macOS에서 앱 디렉터리 빌드 확인:
+
+```bash
+npm run build
+open "dist/mac-arm64/Quota Bar.app"
+```
+
+배포 패키지 생성:
+
+```bash
+npm run package:mac
+npm run package:win
+npm run package:linux
+```
+
+Windows/Linux 배포 파일은 각 OS에서 같은 저장소를 clone한 뒤 해당 플랫폼 명령으로 빌드하는 방식을 권장합니다. macOS에서 교차 빌드를 시도할 수는 있지만 코드서명, NSIS, AppImage/deb 도구 체인 때문에 CI 또는 실제 대상 OS에서 빌드하는 편이 안정적입니다.
+
 ## 검증 및 테스트 하네스
 
 ```bash
@@ -76,7 +101,8 @@ npm run verify
 ## 추가로 필요한 기능 후보
 
 - Gemini 실제 사용량 API 연결
-- macOS Keychain 기반 토큰 저장
+- Windows Credential Manager 및 Linux Secret Service fallback
+- macOS Keychain 기반 앱 저장 토큰
 - 사용량 임계치 알림
 - 일/주/月 사용량 추세 및 CLI 로그 기반 토큰/비용 집계
 - 자동 시작 로그인 항목 등록
