@@ -54,7 +54,8 @@
     "appId": "com.apg0001.aiusagewidget",
     "productName": "Quota Bar",
     "files": [
-      "dist/**/*",
+      "dist/main/**/*",
+      "dist/renderer/**/*",
       "package.json"
     ],
     "mac": {

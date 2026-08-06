@@ -48,7 +48,7 @@ const snapshot: UsageSnapshot = {
 
 describe("getTrayTitle", () => {
   it("아이콘+퍼센트 모드에서 각 모델별 퍼센트를 표시한다", () => {
-    expect(getTrayTitle(snapshot)).toBe("C 30% Cl 80% G 0%");
+    expect(getTrayTitle(snapshot)).toBe("Co 30% Cl 80% G 0%");
   });
 
   it("아이콘 모드에서는 선택된 모델 약칭만 표시한다", () => {
@@ -60,6 +60,6 @@ describe("getTrayTitle", () => {
           menuBarDisplayMode: "icons"
         }
       })
-    ).toBe("C Cl G");
+    ).toBe("Co Cl G");
   });
 });

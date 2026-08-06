@@ -7,6 +7,7 @@ describe("플랫폼별 빌드 설정", () => {
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as {
       scripts: Record<string, string>;
       build: {
+        files: string[];
         mac: { target: string[] };
         win: { target: string[] };
         linux: { target: string[] };
@@ -19,5 +20,7 @@ describe("플랫폼별 빌드 설정", () => {
     expect(packageJson.build.mac.target).toEqual(["dmg", "zip"]);
     expect(packageJson.build.win.target).toEqual(["nsis", "portable"]);
     expect(packageJson.build.linux.target).toEqual(["AppImage", "deb"]);
+    expect(packageJson.build.files).toEqual(["dist/main/**/*", "dist/renderer/**/*", "package.json"]);
+    expect(packageJson.build.files).not.toContain("dist/**/*");
   });
 });
