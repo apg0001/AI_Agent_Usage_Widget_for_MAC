@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fetchUsageSnapshot } from "../../src/main/usageProviders";
 import { AppSettings } from "../../src/shared/types";
 
-function oauthLogin(settings: AppSettings, provider: keyof AppSettings["providers"], accessToken: string): AppSettings {
+function tokenLogin(settings: AppSettings, provider: keyof AppSettings["providers"], accessToken: string): AppSettings {
   return {
     ...settings,
     providers: {
@@ -10,9 +10,9 @@ function oauthLogin(settings: AppSettings, provider: keyof AppSettings["provider
       [provider]: {
         ...settings.providers[provider],
         auth: {
-          type: "oauth",
+          type: "token",
           accessToken,
-          accountLabel: "OAuth"
+          accountLabel: "토큰"
         }
       }
     }
@@ -57,8 +57,8 @@ describe("제공자 설정 흐름", () => {
       }
     };
 
-    settings = oauthLogin(settings, "codex", "codex-oauth-token");
-    settings = oauthLogin(settings, "gemini", "gemini-oauth-token");
+    settings = tokenLogin(settings, "codex", "codex-token");
+    settings = tokenLogin(settings, "gemini", "gemini-token");
     settings = setVisible(settings, "claude", false);
 
     let usage = await fetchUsageSnapshot(settings);

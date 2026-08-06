@@ -31,6 +31,14 @@ describe("Electron 런타임 설정", () => {
     expect(preload).toContain("oauthLogin");
   });
 
+  it("토큰 로그인 IPC를 제공한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
+
+    expect(main).toContain('"provider:token-login"');
+    expect(preload).toContain("tokenLogin");
+  });
+
   it("메뉴바 표시 모드 설정 IPC를 제공한다", () => {
     const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
     const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");

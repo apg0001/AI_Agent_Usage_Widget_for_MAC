@@ -37,7 +37,7 @@ function readStore(): StoreShape {
     };
 
     for (const provider of Object.keys(providers) as ProviderId[]) {
-      if (providers[provider].auth?.type !== "oauth") {
+      if (providers[provider].auth && !["token", "oauth"].includes(providers[provider].auth.type)) {
         delete providers[provider].auth;
       }
     }
@@ -88,6 +88,24 @@ export function setMenuBarDisplayMode(menuBarDisplayMode: AppSettings["menuBarDi
   return saveSettings({
     ...settings,
     menuBarDisplayMode
+  });
+}
+
+export function setProviderToken(provider: ProviderId, token: string): AppSettings {
+  const settings = getSettings();
+  return saveSettings({
+    ...settings,
+    providers: {
+      ...settings.providers,
+      [provider]: {
+        ...settings.providers[provider],
+        auth: {
+          type: "token",
+          accessToken: token,
+          accountLabel: "토큰"
+        }
+      }
+    }
   });
 }
 
