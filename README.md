@@ -56,13 +56,13 @@ npm run verify
 - 커밋 메시지는 한국어로 작성하고 `[feat] ~~~`, `[docs] ~~~`, `[fix] ~~~` 형식을 사용합니다.
 - 작업 완료 후 PR을 생성하고 코드리뷰 내용을 한국어로 작성합니다.
 - 병합 대상은 `develop` 브랜치입니다.
-- PR 승인 자동화는 저장소 권한과 GitHub 정책에 따라 별도 토큰 또는 GitHub App 설정이 필요합니다.
+- PR 승인 자동화는 저장소 권한과 GitHub 정책에 따라 별도 승인 계정 또는 GitHub App 설정이 필요합니다.
 
 ## 추가로 필요한 기능 후보
 
 - 실제 Codex, Claude, Gemini 사용량 API 연결
-- macOS Keychain 기반 토큰 저장
-- 브라우저 기반 OAuth 로그인 및 앱 callback 처리
+- macOS Keychain 기반 OAuth 세션 저장
+- 제공자별 공식 사용량 OAuth API 연결
 - 사용량 임계치 알림
 - 일/주/月 사용량 추세
 - 자동 시작 로그인 항목 등록

@@ -4,6 +4,7 @@ import { AppSettings } from "../../src/shared/types";
 
 const baseSettings: AppSettings = {
   refreshIntervalMs: 10_000,
+  menuBarDisplayMode: "icons",
   providers: {
     codex: { visible: true },
     claude: { visible: true },
@@ -39,8 +40,8 @@ describe("fetchUsageSnapshot", () => {
         codex: {
           visible: true,
           auth: {
-            type: "api-key",
-            accessToken: "codex-token"
+            type: "oauth",
+            accessToken: "codex-oauth-token"
           }
         }
       }

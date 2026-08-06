@@ -149,9 +149,9 @@ export async function startOAuthLogin(provider: ProviderId): Promise<OAuthLoginR
   return {
     provider,
     status: "unsupported",
-    message:
+      message:
       provider === "codex"
         ? "Codex/OpenAI 개인 사용량 조회용 OAuth API는 아직 앱 설정에 연결되지 않았습니다."
-        : "Claude 개인 사용량 조회용 OAuth는 현재 앱에서 지원하지 않습니다. Admin API 키 방식 검토가 필요합니다."
+        : "Claude 개인 사용량 조회용 공식 OAuth API 확인이 필요합니다."
   };
 }

@@ -30,4 +30,12 @@ describe("Electron 런타임 설정", () => {
     expect(main).toContain('"provider:oauth-login"');
     expect(preload).toContain("oauthLogin");
   });
+
+  it("메뉴바 표시 모드 설정 IPC를 제공한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
+
+    expect(main).toContain('"settings:menu-bar-display-mode"');
+    expect(preload).toContain("setMenuBarDisplayMode");
+  });
 });

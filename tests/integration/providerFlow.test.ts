@@ -2,18 +2,17 @@ import { describe, expect, it } from "vitest";
 import { fetchUsageSnapshot } from "../../src/main/usageProviders";
 import { AppSettings } from "../../src/shared/types";
 
-function login(settings: AppSettings, provider: keyof AppSettings["providers"], token: string): AppSettings {
+function oauthLogin(settings: AppSettings, provider: keyof AppSettings["providers"], accessToken: string): AppSettings {
   return {
     ...settings,
     providers: {
       ...settings.providers,
       [provider]: {
         ...settings.providers[provider],
-        token,
         auth: {
-          type: "api-key",
-          accessToken: token,
-          accountLabel: "API 키"
+          type: "oauth",
+          accessToken,
+          accountLabel: "OAuth"
         }
       }
     }
@@ -22,7 +21,6 @@ function login(settings: AppSettings, provider: keyof AppSettings["providers"], 
 
 function logout(settings: AppSettings, provider: keyof AppSettings["providers"]): AppSettings {
   const nextProvider = { ...settings.providers[provider] };
-  delete nextProvider.token;
   delete nextProvider.auth;
 
   return {
@@ -51,6 +49,7 @@ describe("제공자 설정 흐름", () => {
   it("로그인, 표시 모델 선택, 로그아웃 흐름을 검증한다", async () => {
     let settings: AppSettings = {
       refreshIntervalMs: 10_000,
+      menuBarDisplayMode: "icons",
       providers: {
         codex: { visible: true },
         claude: { visible: true },
@@ -58,8 +57,8 @@ describe("제공자 설정 흐름", () => {
       }
     };
 
-    settings = login(settings, "codex", "codex-token");
-    settings = login(settings, "gemini", "gemini-token");
+    settings = oauthLogin(settings, "codex", "codex-oauth-token");
+    settings = oauthLogin(settings, "gemini", "gemini-oauth-token");
     settings = setVisible(settings, "claude", false);
 
     let usage = await fetchUsageSnapshot(settings);
@@ -73,11 +72,12 @@ describe("제공자 설정 흐름", () => {
     expect(usage.find((item) => item.provider === "gemini")?.status).not.toBe("signed-out");
   });
 
-  it("레거시 token 값만으로는 로그인 상태로 보지 않는다", async () => {
+  it("auth가 없으면 로그인 상태로 보지 않는다", async () => {
     const settings: AppSettings = {
       refreshIntervalMs: 10_000,
+      menuBarDisplayMode: "icons",
       providers: {
-        codex: { visible: true, token: "old-token" },
+        codex: { visible: true },
         claude: { visible: true },
         gemini: { visible: true }
       }

@@ -1,6 +1,6 @@
-import { Check, ExternalLink, KeyRound, LogIn, LogOut, Power, RefreshCw, Settings2 } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
-import { LoginPayload, ProviderId, ProviderUsage, PROVIDERS, UsageSnapshot } from "../../shared/types";
+import { Check, ExternalLink, LogOut, Power, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ProviderId, ProviderUsage, PROVIDERS, UsageSnapshot } from "../../shared/types";
 import "./styles.css";
 
 const statusLabel: Record<ProviderUsage["status"], string> = {
@@ -23,7 +23,19 @@ function formatTime(value?: string) {
   }).format(new Date(value));
 }
 
-function UsageRow({ usage }: { usage: ProviderUsage }) {
+function UsageRow({
+  usage,
+  isAuthenticated,
+  busy,
+  onOAuthLogin,
+  onLogout
+}: {
+  usage: ProviderUsage;
+  isAuthenticated: boolean;
+  busy: boolean;
+  onOAuthLogin: (provider: ProviderId) => Promise<void>;
+  onLogout: (provider: ProviderId) => Promise<void>;
+}) {
   return (
     <section className={`usage-row ${usage.status}`}>
       <div className="row-top">
@@ -31,8 +43,24 @@ function UsageRow({ usage }: { usage: ProviderUsage }) {
           <h2>{usage.label}</h2>
           <p>{usage.message ?? `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()} ${usage.unit}`}</p>
         </div>
-        <strong>{statusLabel[usage.status]}</strong>
+        {isAuthenticated ? (
+          <button className="card-auth-button logout" type="button" onClick={() => onLogout(usage.provider)} disabled={busy}>
+            <LogOut size={14} />
+            로그아웃
+          </button>
+        ) : (
+          <button
+            className="card-auth-button oauth-login"
+            type="button"
+            onClick={() => onOAuthLogin(usage.provider)}
+            disabled={busy}
+          >
+            <ExternalLink size={14} />
+            로그인
+          </button>
+        )}
       </div>
+      <strong className="status-badge">{statusLabel[usage.status]}</strong>
       <div className="meter" aria-label={`${usage.label} 사용률 ${usage.percent}%`}>
         <span style={{ width: `${usage.percent}%` }} />
       </div>
@@ -41,35 +69,6 @@ function UsageRow({ usage }: { usage: ProviderUsage }) {
         <span>{formatTime(usage.updatedAt)}</span>
       </div>
     </section>
-  );
-}
-
-function LoginForm({ provider, onLogin }: { provider: ProviderId; onLogin: (payload: LoginPayload) => Promise<void> }) {
-  const [token, setToken] = useState("");
-  const label = PROVIDERS.find((item) => item.id === provider)?.label ?? provider;
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token.trim()) {
-      return;
-    }
-    await onLogin({ provider, token: token.trim() });
-    setToken("");
-  }
-
-  return (
-    <form className="login-form" onSubmit={submit}>
-      <input
-        aria-label={`${label} 토큰`}
-        type="password"
-        value={token}
-        placeholder={`${label} 토큰`}
-        onChange={(event) => setToken(event.target.value)}
-      />
-      <button type="submit" title={`${label} 로그인`}>
-        <LogIn size={16} />
-      </button>
-    </form>
   );
 }
 
@@ -97,11 +96,6 @@ export default function App() {
     await run(() => window.aiUsage.setProviderVisibility(provider, visible));
   }
 
-  async function login(payload: LoginPayload) {
-    await run(() => window.aiUsage.login(payload));
-    setNotice("API 키 로그인이 저장되었습니다.");
-  }
-
   async function oauthLogin(provider: ProviderId) {
     setBusy(true);
     try {
@@ -119,8 +113,6 @@ export default function App() {
 
   const visibleUsage = snapshot?.usage ?? [];
   const lastUpdated = visibleUsage[0]?.updatedAt;
-  const selectedSettings = snapshot?.settings.providers[selectedProvider];
-  const selectedAuth = selectedSettings?.auth;
 
   return (
     <main className="shell">
@@ -163,40 +155,39 @@ export default function App() {
         })}
       </section>
 
-      <section className="account-panel">
-        <div className="panel-heading">
-          <Settings2 size={16} />
-          <span>{PROVIDERS.find((provider) => provider.id === selectedProvider)?.label} 계정</span>
+      <section className="display-panel" aria-label="메뉴바 표시 설정">
+        <span>메뉴바</span>
+        <div className="segmented">
+          <button
+            type="button"
+            className={snapshot?.settings.menuBarDisplayMode !== "iconsWithPercent" ? "active" : ""}
+            onClick={() => run(() => window.aiUsage.setMenuBarDisplayMode("icons"))}
+          >
+            아이콘
+          </button>
+          <button
+            type="button"
+            className={snapshot?.settings.menuBarDisplayMode === "iconsWithPercent" ? "active" : ""}
+            onClick={() => run(() => window.aiUsage.setMenuBarDisplayMode("iconsWithPercent"))}
+          >
+            아이콘+%
+          </button>
         </div>
-        {selectedAuth ? (
-          <div className="account-actions">
-            <p>{selectedAuth.accountLabel ?? (selectedAuth.type === "oauth" ? "OAuth" : "API 키")}로 로그인됨</p>
-            <button className="logout" type="button" onClick={() => logout(selectedProvider)}>
-              <LogOut size={16} />
-              로그아웃
-            </button>
-          </div>
-        ) : (
-          <div className="account-actions">
-            <button className="oauth-login" type="button" onClick={() => oauthLogin(selectedProvider)} disabled={busy}>
-              <ExternalLink size={16} />
-              브라우저 로그인
-            </button>
-            <details>
-              <summary>
-                <KeyRound size={14} />
-                API 키로 로그인
-              </summary>
-              <LoginForm provider={selectedProvider} onLogin={login} />
-            </details>
-          </div>
-        )}
         {notice ? <p className="notice">{notice}</p> : null}
       </section>
 
       <section className="usage-list" aria-live="polite">
         {visibleUsage.length ? (
-          visibleUsage.map((usage) => <UsageRow key={usage.provider} usage={usage} />)
+          visibleUsage.map((usage) => (
+            <UsageRow
+              key={usage.provider}
+              usage={usage}
+              isAuthenticated={Boolean(snapshot?.settings.providers[usage.provider].auth)}
+              busy={busy}
+              onOAuthLogin={oauthLogin}
+              onLogout={logout}
+            />
+          ))
         ) : (
           <div className="empty">표시할 모델을 선택하세요.</div>
         )}

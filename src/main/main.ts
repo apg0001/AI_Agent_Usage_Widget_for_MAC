@@ -2,9 +2,9 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from "el
 import path from "node:path";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { startOAuthLogin } from "./oauthProviders.js";
-import { clearProviderToken, getSettings, setProviderToken, setProviderVisibility } from "./settingsStore.js";
+import { clearProviderAuth, getSettings, setMenuBarDisplayMode, setProviderVisibility } from "./settingsStore.js";
 import { fetchUsageSnapshot } from "./usageProviders.js";
-import { LoginPayload, ProviderId, UsageSnapshot } from "../shared/types.js";
+import { PROVIDERS, ProviderId, UsageSnapshot } from "../shared/types.js";
 
 const isDev = !app.isPackaged;
 
@@ -38,8 +38,8 @@ function createTrayIcon() {
 
 function createWindow() {
   window = new BrowserWindow({
-    width: 380,
-    height: 560,
+    width: 420,
+    height: 640,
     show: false,
     resizable: false,
     fullscreenable: false,
@@ -112,12 +112,14 @@ function toggleWindow() {
 }
 
 function updateTray(snapshot: UsageSnapshot) {
-  const visibleUsage = snapshot.usage.filter((usage) => usage.status !== "signed-out");
-  const average = visibleUsage.length
-    ? Math.round(visibleUsage.reduce((sum, usage) => sum + usage.percent, 0) / visibleUsage.length)
+  const activeUsage = snapshot.usage.filter((usage) => usage.status !== "signed-out");
+  const average = activeUsage.length
+    ? Math.round(activeUsage.reduce((sum, usage) => sum + usage.percent, 0) / activeUsage.length)
     : 0;
+  const visibleProviders = PROVIDERS.filter((provider) => snapshot.settings.providers[provider.id].visible);
+  const icons = visibleProviders.map((provider) => provider.label[0]).join("");
 
-  tray?.setTitle(visibleUsage.length ? `AI ${average}%` : "AI");
+  tray?.setTitle(snapshot.settings.menuBarDisplayMode === "iconsWithPercent" ? `${icons || "AI"} ${average}%` : icons || "AI");
   tray?.setToolTip("AI 사용량 위젯");
 }
 
@@ -148,8 +150,8 @@ function registerIpc() {
     restartRefreshTimer();
     return refreshUsage();
   });
-  ipcMain.handle("provider:login", async (_event, payload: LoginPayload) => {
-    setProviderToken(payload.provider, payload.token);
+  ipcMain.handle("settings:menu-bar-display-mode", async (_event, mode: "icons" | "iconsWithPercent") => {
+    setMenuBarDisplayMode(mode);
     return refreshUsage();
   });
   ipcMain.handle("provider:oauth-login", async (_event, provider: ProviderId) => {
@@ -158,7 +160,7 @@ function registerIpc() {
     return { result, snapshot };
   });
   ipcMain.handle("provider:logout", async (_event, provider: ProviderId) => {
-    clearProviderToken(provider);
+    clearProviderAuth(provider);
     return refreshUsage();
   });
   ipcMain.handle("app:quit", () => app.quit());
