@@ -169,18 +169,75 @@ footer,
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
-.logout {
+.account-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.account-actions p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.logout,
+.oauth-login {
   height: 36px;
   border: 0;
   border-radius: 8px;
-  background: #fee2e2;
-  color: #991b1b;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.logout {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.oauth-login {
+  background: #111827;
+  color: #ffffff;
+}
+
+.oauth-login:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+details {
+  display: grid;
+  gap: 8px;
+}
+
+summary {
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] summary {
+  margin-bottom: 8px;
+}
+
+.notice {
+  margin: 0;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .usage-list {

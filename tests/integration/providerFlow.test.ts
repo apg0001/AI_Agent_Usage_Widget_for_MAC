@@ -9,7 +9,12 @@ function login(settings: AppSettings, provider: keyof AppSettings["providers"], 
       ...settings.providers,
       [provider]: {
         ...settings.providers[provider],
-        token
+        token,
+        auth: {
+          type: "api-key",
+          accessToken: token,
+          accountLabel: "API 키"
+        }
       }
     }
   };
@@ -18,6 +23,7 @@ function login(settings: AppSettings, provider: keyof AppSettings["providers"], 
 function logout(settings: AppSettings, provider: keyof AppSettings["providers"]): AppSettings {
   const nextProvider = { ...settings.providers[provider] };
   delete nextProvider.token;
+  delete nextProvider.auth;
 
   return {
     ...settings,
@@ -65,5 +71,28 @@ describe("제공자 설정 흐름", () => {
 
     expect(usage.find((item) => item.provider === "codex")?.status).toBe("signed-out");
     expect(usage.find((item) => item.provider === "gemini")?.status).not.toBe("signed-out");
+  });
+
+  it("레거시 token 값만으로는 로그인 상태로 보지 않는다", async () => {
+    const settings: AppSettings = {
+      refreshIntervalMs: 10_000,
+      providers: {
+        codex: { visible: true, token: "old-token" },
+        claude: { visible: true },
+        gemini: { visible: true }
+      }
+    };
+
+    const usage = await fetchUsageSnapshot({
+      ...settings,
+      providers: {
+        ...settings.providers,
+        codex: {
+          visible: true
+        }
+      }
+    });
+
+    expect(usage.find((item) => item.provider === "codex")?.status).toBe("signed-out");
   });
 });

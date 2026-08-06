@@ -47,7 +47,9 @@ export async function fetchUsageSnapshot(settings: AppSettings): Promise<Provide
   return Promise.all(
     visibleAdapters.map(async (adapter) => {
       try {
-        const result = await adapter.fetchUsage(settings.providers[adapter.id].token);
+        const providerSettings = settings.providers[adapter.id];
+        const credential = providerSettings.auth?.accessToken;
+        const result = await adapter.fetchUsage(credential);
         return {
           provider: adapter.id,
           label: adapter.label,

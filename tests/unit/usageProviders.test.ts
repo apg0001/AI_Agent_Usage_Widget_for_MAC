@@ -36,7 +36,13 @@ describe("fetchUsageSnapshot", () => {
       ...baseSettings,
       providers: {
         ...baseSettings.providers,
-        codex: { visible: true, token: "codex-token" }
+        codex: {
+          visible: true,
+          auth: {
+            type: "api-key",
+            accessToken: "codex-token"
+          }
+        }
       }
     });
 

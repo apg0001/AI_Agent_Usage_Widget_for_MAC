@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from "electron";
 import path from "node:path";
 import { getRendererIndexPath } from "./rendererPath.js";
+import { startOAuthLogin } from "./oauthProviders.js";
 import { clearProviderToken, getSettings, setProviderToken, setProviderVisibility } from "./settingsStore.js";
 import { fetchUsageSnapshot } from "./usageProviders.js";
 import { LoginPayload, ProviderId, UsageSnapshot } from "../shared/types.js";
@@ -150,6 +151,11 @@ function registerIpc() {
   ipcMain.handle("provider:login", async (_event, payload: LoginPayload) => {
     setProviderToken(payload.provider, payload.token);
     return refreshUsage();
+  });
+  ipcMain.handle("provider:oauth-login", async (_event, provider: ProviderId) => {
+    const result = await startOAuthLogin(provider);
+    const snapshot = await refreshUsage();
+    return { result, snapshot };
   });
   ipcMain.handle("provider:logout", async (_event, provider: ProviderId) => {
     clearProviderToken(provider);

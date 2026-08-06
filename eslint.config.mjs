@@ -26,7 +26,10 @@ export default [
         __dirname: "readonly",
         setInterval: "readonly",
         clearInterval: "readonly",
-        setTimeout: "readonly"
+        setTimeout: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        fetch: "readonly"
       }
     },
     plugins: {

@@ -14,7 +14,16 @@ export type ProviderUsage = {
 
 export type ProviderSettings = {
   visible: boolean;
+  auth?: ProviderAuth;
   token?: string;
+};
+
+export type ProviderAuth = {
+  type: "api-key" | "oauth";
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  accountLabel?: string;
 };
 
 export type AppSettings = {
@@ -30,6 +39,12 @@ export type UsageSnapshot = {
 export type LoginPayload = {
   provider: ProviderId;
   token: string;
+};
+
+export type OAuthLoginResult = {
+  provider: ProviderId;
+  status: "success" | "unsupported" | "missing-config" | "error";
+  message: string;
 };
 
 export const PROVIDERS: Array<{ id: ProviderId; label: string }> = [
