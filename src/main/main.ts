@@ -1,18 +1,27 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from "electron";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { clearProviderToken, getSettings, setProviderToken, setProviderVisibility } from "./settingsStore.js";
 import { fetchUsageSnapshot } from "./usageProviders.js";
 import { LoginPayload, ProviderId, UsageSnapshot } from "../shared/types.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
 
 let tray: Tray | null = null;
 let window: BrowserWindow | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let latestSnapshot: UsageSnapshot | null = null;
+
+function showWindow() {
+  if (!window) {
+    return;
+  }
+
+  positionWindow();
+  window.show();
+  window.focus();
+  window.moveTop();
+}
 
 function createTrayIcon() {
   const svg = encodeURIComponent(`
@@ -34,13 +43,26 @@ function createWindow() {
     resizable: false,
     fullscreenable: false,
     frame: false,
-    transparent: true,
-    vibrancy: "sidebar",
-    visualEffectState: "active",
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    transparent: false,
+    backgroundColor: "#f8fafc",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
       nodeIntegration: false
+    }
+  });
+
+  window.once("ready-to-show", () => {
+    if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
+      showWindow();
+    }
+  });
+
+  window.webContents.once("did-finish-load", () => {
+    if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH && !window?.isVisible()) {
+      showWindow();
     }
   });
 
@@ -51,19 +73,27 @@ function createWindow() {
   }
 
   window.on("blur", () => {
-    window?.hide();
+    if (!process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
+      window?.hide();
+    }
   });
 }
 
 function positionWindow() {
-  if (!tray || !window) {
+  if (!window) {
     return;
   }
 
-  const trayBounds = tray.getBounds();
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const workArea = display.workArea;
   const windowBounds = window.getBounds();
-  const x = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2);
-  const y = Math.round(trayBounds.y + trayBounds.height + 8);
+  const trayBounds = tray?.getBounds();
+  const targetX = trayBounds
+    ? Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2)
+    : Math.round(workArea.x + workArea.width / 2 - windowBounds.width / 2);
+  const targetY = trayBounds ? Math.round(trayBounds.y + trayBounds.height + 8) : Math.round(workArea.y + 24);
+  const x = Math.min(Math.max(targetX, workArea.x + 8), workArea.x + workArea.width - windowBounds.width - 8);
+  const y = Math.min(Math.max(targetY, workArea.y + 8), workArea.y + workArea.height - windowBounds.height - 8);
   window.setPosition(x, y, false);
 }
 
@@ -77,9 +107,7 @@ function toggleWindow() {
     return;
   }
 
-  positionWindow();
-  window.show();
-  window.focus();
+  showWindow();
 }
 
 function updateTray(snapshot: UsageSnapshot) {
@@ -147,6 +175,9 @@ app.whenReady().then(() => {
   });
   void refreshUsage();
   restartRefreshTimer();
+  if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
+    setTimeout(showWindow, 500);
+  }
 });
 
 app.on("window-all-closed", () => {

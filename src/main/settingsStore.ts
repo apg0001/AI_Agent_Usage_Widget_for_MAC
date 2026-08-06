@@ -1,4 +1,6 @@
-import Store from "electron-store";
+import { app } from "electron";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { AppSettings, ProviderId } from "../shared/types.js";
 
 type StoreShape = {
@@ -14,19 +16,47 @@ const defaultSettings: AppSettings = {
   }
 };
 
-const store = new Store<StoreShape>({
-  name: "ai-usage-widget",
-  defaults: {
-    settings: defaultSettings
+function getStorePath() {
+  const directory = app.getPath("userData");
+  return path.join(directory, "ai-usage-widget.json");
+}
+
+function readStore(): StoreShape {
+  const storePath = getStorePath();
+
+  if (!existsSync(storePath)) {
+    return { settings: defaultSettings };
   }
-});
+
+  try {
+    const parsed = JSON.parse(readFileSync(storePath, "utf8")) as Partial<StoreShape>;
+    return {
+      settings: {
+        ...defaultSettings,
+        ...parsed.settings,
+        providers: {
+          ...defaultSettings.providers,
+          ...parsed.settings?.providers
+        }
+      }
+    };
+  } catch {
+    return { settings: defaultSettings };
+  }
+}
+
+function writeStore(store: StoreShape) {
+  const storePath = getStorePath();
+  mkdirSync(path.dirname(storePath), { recursive: true });
+  writeFileSync(storePath, JSON.stringify(store, null, 2));
+}
 
 export function getSettings(): AppSettings {
-  return store.get("settings");
+  return readStore().settings;
 }
 
 export function saveSettings(settings: AppSettings): AppSettings {
-  store.set("settings", settings);
+  writeStore({ settings });
   return settings;
 }
 

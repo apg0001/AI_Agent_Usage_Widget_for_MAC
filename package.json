@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "description": "macOS menu bar widget for monitoring AI agent usage.",
   "main": "dist/main/main/main.js",
-  "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on tcp:5173 dist/main/main/main.js && electron .\"",
+    "dev": "npm run build:main && concurrently -k \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on tcp:5173 dist/main/main/main.js && env -u ELECTRON_RUN_AS_NODE electron .\"",
+    "build:main": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.json && vite build && electron-builder --dir",
     "package": "npm run build && electron-builder",
     "lint": "eslint . --ext .ts,.tsx",
@@ -25,7 +25,6 @@
   "license": "MIT",
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "electron-store": "^10.0.1",
     "lucide-react": "^0.468.0",
     "vite": "^6.0.7",
     "react": "^18.3.1",

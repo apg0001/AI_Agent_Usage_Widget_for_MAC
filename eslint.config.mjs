@@ -23,8 +23,10 @@ export default [
         HTMLFormElement: "readonly",
         HTMLElement: "readonly",
         process: "readonly",
+        __dirname: "readonly",
         setInterval: "readonly",
-        clearInterval: "readonly"
+        clearInterval: "readonly",
+        setTimeout: "readonly"
       }
     },
     plugins: {
