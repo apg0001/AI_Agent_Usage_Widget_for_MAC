@@ -5,14 +5,19 @@ import { describe, expect, it } from "vitest";
 describe("로컬 세션 및 기간별 사용량 연결", () => {
   it("Codex/Claude/Gemini의 로컬 세션과 기간별 초기화 정보를 연결한다", () => {
     const usageProviders = readFileSync(resolve(process.cwd(), "src/main/usageProviders.ts"), "utf8");
+    const macPlatform = readFileSync(resolve(process.cwd(), "src/main/platform/mac.ts"), "utf8");
+    const platformIndex = readFileSync(resolve(process.cwd(), "src/main/platform/index.ts"), "utf8");
     const renderer = readFileSync(resolve(process.cwd(), "src/renderer/src/App.tsx"), "utf8");
 
     expect(usageProviders).toContain("https://chatgpt.com/backend-api/wham/usage");
     expect(usageProviders).toContain('".codex"');
-    expect(usageProviders).toContain("Claude Code-credentials");
-    expect(usageProviders).toContain("dump-keychain");
+    expect(usageProviders).toContain("platformAdapter.readClaudeKeychainAccessToken");
+    expect(macPlatform).toContain("Claude Code-credentials");
+    expect(macPlatform).toContain("dump-keychain");
     expect(usageProviders).toContain("claudeAiOauth");
     expect(usageProviders).toContain("claude-code/2.1.121");
+    expect(platformIndex).toContain('platform === "win32"');
+    expect(platformIndex).toContain("linuxPlatform");
     expect(usageProviders).toContain(".gemini");
     expect(usageProviders).toContain("windows");
     expect(usageProviders).toContain("windowLabel");

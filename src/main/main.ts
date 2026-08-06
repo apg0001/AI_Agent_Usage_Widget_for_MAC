@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from "el
 import path from "node:path";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { startOAuthLogin } from "./oauthProviders.js";
+import { platformAdapter } from "./platform/index.js";
 import {
   clearProviderAuth,
   getSettings,
@@ -174,7 +175,7 @@ function registerIpc() {
 }
 
 app.whenReady().then(() => {
-  app.dock?.hide();
+  platformAdapter.hideFromDock(app);
   Menu.setApplicationMenu(null);
   registerIpc();
   createWindow();

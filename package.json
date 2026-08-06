@@ -1,13 +1,17 @@
 {
   "name": "quota-bar",
   "version": "0.1.0",
-  "description": "macOS menu bar app for monitoring AI quota usage.",
+  "description": "Cross-platform tray app for monitoring AI quota usage.",
   "main": "dist/main/main/main.js",
   "scripts": {
     "dev": "npm run build:main && concurrently -k \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on tcp:5173 dist/main/main/main.js && env -u ELECTRON_RUN_AS_NODE electron .\"",
     "build:main": "tsc -p tsconfig.json",
-    "build": "tsc -p tsconfig.json && vite build && electron-builder --dir",
-    "package": "npm run build && electron-builder",
+    "compile": "tsc -p tsconfig.json && vite build",
+    "build": "npm run compile && electron-builder --dir",
+    "package": "npm run package:mac",
+    "package:mac": "npm run compile && electron-builder --mac",
+    "package:win": "npm run compile && electron-builder --win",
+    "package:linux": "npm run compile && electron-builder --linux",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "npm run test:unit && npm run test:integration",
@@ -17,6 +21,8 @@
   },
   "keywords": [
     "macos",
+    "windows",
+    "linux",
     "menu-bar",
     "ai",
     "usage"
@@ -56,6 +62,19 @@
       "target": [
         "dmg",
         "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "category": "Utility",
+      "target": [
+        "AppImage",
+        "deb"
       ]
     }
   }
