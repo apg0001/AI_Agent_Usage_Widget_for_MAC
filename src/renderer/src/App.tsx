@@ -1,4 +1,4 @@
-import { Check, LogIn, LogOut, Power, RefreshCw, Settings2 } from "lucide-react";
+import { Check, ExternalLink, KeyRound, LogIn, LogOut, Power, RefreshCw, Settings2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { LoginPayload, ProviderId, ProviderUsage, PROVIDERS, UsageSnapshot } from "../../shared/types";
 import "./styles.css";
@@ -7,7 +7,7 @@ const statusLabel: Record<ProviderUsage["status"], string> = {
   ok: "정상",
   warning: "주의",
   critical: "임박",
-  "signed-out": "로그아웃",
+  "signed-out": "미로그인",
   error: "오류"
 };
 
@@ -77,6 +77,7 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ProviderId>("codex");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     void window.aiUsage.getUsage().then(setSnapshot);
@@ -98,6 +99,18 @@ export default function App() {
 
   async function login(payload: LoginPayload) {
     await run(() => window.aiUsage.login(payload));
+    setNotice("API 키 로그인이 저장되었습니다.");
+  }
+
+  async function oauthLogin(provider: ProviderId) {
+    setBusy(true);
+    try {
+      const { result, snapshot: nextSnapshot } = await window.aiUsage.oauthLogin(provider);
+      setSnapshot(nextSnapshot);
+      setNotice(result.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function logout(provider: ProviderId) {
@@ -106,6 +119,8 @@ export default function App() {
 
   const visibleUsage = snapshot?.usage ?? [];
   const lastUpdated = visibleUsage[0]?.updatedAt;
+  const selectedSettings = snapshot?.settings.providers[selectedProvider];
+  const selectedAuth = selectedSettings?.auth;
 
   return (
     <main className="shell">
@@ -153,14 +168,30 @@ export default function App() {
           <Settings2 size={16} />
           <span>{PROVIDERS.find((provider) => provider.id === selectedProvider)?.label} 계정</span>
         </div>
-        {snapshot?.settings.providers[selectedProvider].token ? (
-          <button className="logout" type="button" onClick={() => logout(selectedProvider)}>
-            <LogOut size={16} />
-            로그아웃
-          </button>
+        {selectedAuth ? (
+          <div className="account-actions">
+            <p>{selectedAuth.accountLabel ?? (selectedAuth.type === "oauth" ? "OAuth" : "API 키")}로 로그인됨</p>
+            <button className="logout" type="button" onClick={() => logout(selectedProvider)}>
+              <LogOut size={16} />
+              로그아웃
+            </button>
+          </div>
         ) : (
-          <LoginForm provider={selectedProvider} onLogin={login} />
+          <div className="account-actions">
+            <button className="oauth-login" type="button" onClick={() => oauthLogin(selectedProvider)} disabled={busy}>
+              <ExternalLink size={16} />
+              브라우저 로그인
+            </button>
+            <details>
+              <summary>
+                <KeyRound size={14} />
+                API 키로 로그인
+              </summary>
+              <LoginForm provider={selectedProvider} onLogin={login} />
+            </details>
+          </div>
         )}
+        {notice ? <p className="notice">{notice}</p> : null}
       </section>
 
       <section className="usage-list" aria-live="polite">

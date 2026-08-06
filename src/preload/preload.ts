@@ -7,6 +7,11 @@ const api = {
   setProviderVisibility: (provider: ProviderId, visible: boolean) =>
     ipcRenderer.invoke("provider:visibility", provider, visible) as Promise<UsageSnapshot>,
   login: (payload: LoginPayload) => ipcRenderer.invoke("provider:login", payload) as Promise<UsageSnapshot>,
+  oauthLogin: (provider: ProviderId) =>
+    ipcRenderer.invoke("provider:oauth-login", provider) as Promise<{
+      result: import("../shared/types.js").OAuthLoginResult;
+      snapshot: UsageSnapshot;
+    }>,
   logout: (provider: ProviderId) => ipcRenderer.invoke("provider:logout", provider) as Promise<UsageSnapshot>,
   quit: () => ipcRenderer.invoke("app:quit") as Promise<void>,
   onUsageSnapshot: (callback: (snapshot: UsageSnapshot) => void) => {

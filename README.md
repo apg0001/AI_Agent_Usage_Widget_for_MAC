@@ -8,11 +8,24 @@ macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인
 - Codex, Claude, Gemini 사용량 10초 간격 자동 갱신
 - 표시할 AI 제공자 선택
 - 제공자별 로그인/로그아웃
+- Gemini 브라우저 OAuth 로그인 골격
 - 메뉴바 제목에 평균 사용률 표시
 - 수동 새로고침 및 앱 종료
 
 현재 사용량 값은 데모 adapter에서 생성합니다. 실제 서비스 API가 확정되면 `src/main/usageProviders.ts`의 provider adapter를 교체하면 됩니다.
 현재 로그인 값은 앱 userData 디렉터리의 JSON 설정 파일에 저장합니다. 배포 전에는 macOS Keychain 또는 OAuth 세션 저장 방식으로 바꾸는 것을 권장합니다.
+
+## 브라우저 로그인
+
+Gemini는 Google OAuth 데스크톱 앱 흐름을 사용할 수 있도록 main 프로세스에 callback 서버와 토큰 교환 흐름을 추가했습니다.
+
+```bash
+GEMINI_OAUTH_CLIENT_ID="..." \
+GEMINI_OAUTH_CLIENT_SECRET="..." \
+open "dist/mac-arm64/AI Usage Widget.app"
+```
+
+Codex/OpenAI와 Claude는 현재 앱에서 브라우저 OAuth를 바로 완료하지 않고 지원 예정 메시지를 표시합니다. 각 제공자의 공식 개인 사용량 조회 API와 OAuth 정책이 확정되면 `src/main/oauthProviders.ts`와 `src/main/usageProviders.ts`의 adapter를 연결합니다.
 
 ## 실행
 

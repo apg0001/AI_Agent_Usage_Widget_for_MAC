@@ -22,4 +22,12 @@ describe("Electron 런타임 설정", () => {
     expect(main).toContain("transparent: false");
     expect(main).toContain('backgroundColor: "#f8fafc"');
   });
+
+  it("OAuth 브라우저 로그인 IPC를 제공한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
+
+    expect(main).toContain('"provider:oauth-login"');
+    expect(preload).toContain("oauthLogin");
+  });
 });
