@@ -40,8 +40,8 @@ describe("fetchUsageSnapshot", () => {
         codex: {
           visible: true,
           auth: {
-            type: "oauth",
-            accessToken: "codex-oauth-token"
+            type: "token",
+            accessToken: "codex-token"
           }
         }
       }

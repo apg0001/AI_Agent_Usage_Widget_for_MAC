@@ -18,7 +18,7 @@ export type ProviderSettings = {
 };
 
 export type ProviderAuth = {
-  type: "oauth";
+  type: "token" | "oauth";
   accessToken?: string;
   refreshToken?: string;
   expiresAt?: string;
@@ -34,6 +34,11 @@ export type AppSettings = {
 export type UsageSnapshot = {
   settings: AppSettings;
   usage: ProviderUsage[];
+};
+
+export type TokenLoginPayload = {
+  provider: ProviderId;
+  token: string;
 };
 
 export type OAuthLoginResult = {

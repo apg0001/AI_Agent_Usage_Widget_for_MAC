@@ -1,6 +1,6 @@
-import { Check, ExternalLink, LogOut, Power, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
-import { ProviderId, ProviderUsage, PROVIDERS, UsageSnapshot } from "../../shared/types";
+import { Check, KeyRound, LogOut, Power, RefreshCw } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { ProviderId, ProviderUsage, PROVIDERS, TokenLoginPayload, UsageSnapshot } from "../../shared/types";
 import "./styles.css";
 
 const statusLabel: Record<ProviderUsage["status"], string> = {
@@ -12,10 +12,48 @@ const statusLabel: Record<ProviderUsage["status"], string> = {
 };
 
 const loginHelp: Record<ProviderId, string> = {
-  codex: "Codex/OpenAI OAuth 사용량 연동은 공식 API 확인 후 연결됩니다.",
-  claude: "Claude OAuth 사용량 연동은 공식 API 확인 후 연결됩니다.",
-  gemini: "Gemini는 Google OAuth Client ID/Secret 환경변수 설정 후 브라우저 로그인이 가능합니다."
+  codex: "Codex 토큰을 저장하면 앱 재실행 후에도 로그인 상태가 유지됩니다.",
+  claude: "Claude 토큰을 저장하면 앱 재실행 후에도 로그인 상태가 유지됩니다.",
+  gemini: "Gemini 토큰을 저장하면 앱 재실행 후에도 로그인 상태가 유지됩니다."
 };
+
+function TokenLoginForm({
+  provider,
+  busy,
+  onTokenLogin
+}: {
+  provider: ProviderId;
+  busy: boolean;
+  onTokenLogin: (payload: TokenLoginPayload) => Promise<void>;
+}) {
+  const [token, setToken] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token.trim()) {
+      return;
+    }
+
+    await onTokenLogin({ provider, token: token.trim() });
+    setToken("");
+  }
+
+  return (
+    <form className="token-login-form" onSubmit={submit}>
+      <input
+        type="password"
+        value={token}
+        placeholder="토큰"
+        aria-label={`${provider} 토큰`}
+        onChange={(event) => setToken(event.target.value)}
+      />
+      <button type="submit" disabled={busy}>
+        <KeyRound size={14} />
+        로그인
+      </button>
+    </form>
+  );
+}
 
 function formatTime(value?: string) {
   if (!value) {
@@ -33,14 +71,14 @@ function UsageRow({
   usage,
   isAuthenticated,
   busy,
-  onOAuthLogin,
+  onTokenLogin,
   onLogout,
   help
 }: {
   usage: ProviderUsage;
   isAuthenticated: boolean;
   busy: boolean;
-  onOAuthLogin: (provider: ProviderId) => Promise<void>;
+  onTokenLogin: (payload: TokenLoginPayload) => Promise<void>;
   onLogout: (provider: ProviderId) => Promise<void>;
   help: string;
 }) {
@@ -56,18 +94,9 @@ function UsageRow({
             <LogOut size={14} />
             로그아웃
           </button>
-        ) : (
-          <button
-            className="card-auth-button oauth-login"
-            type="button"
-            onClick={() => onOAuthLogin(usage.provider)}
-            disabled={busy}
-          >
-            <ExternalLink size={14} />
-            로그인
-          </button>
-        )}
+        ) : null}
       </div>
+      {!isAuthenticated ? <TokenLoginForm provider={usage.provider} busy={busy} onTokenLogin={onTokenLogin} /> : null}
       <strong className="status-badge">{statusLabel[usage.status]}</strong>
       <div className="meter" aria-label={`${usage.label} 사용률 ${usage.percent}%`}>
         <span style={{ width: `${usage.percent}%` }} />
@@ -105,15 +134,9 @@ export default function App() {
     await run(() => window.aiUsage.setProviderVisibility(provider, visible));
   }
 
-  async function oauthLogin(provider: ProviderId) {
-    setBusy(true);
-    try {
-      const { result, snapshot: nextSnapshot } = await window.aiUsage.oauthLogin(provider);
-      setSnapshot(nextSnapshot);
-      setNotice(result.message);
-    } finally {
-      setBusy(false);
-    }
+  async function tokenLogin(payload: TokenLoginPayload) {
+    await run(() => window.aiUsage.tokenLogin(payload));
+    setNotice(`${PROVIDERS.find((provider) => provider.id === payload.provider)?.label} 토큰 로그인이 저장되었습니다.`);
   }
 
   async function logout(provider: ProviderId) {
@@ -183,7 +206,7 @@ export default function App() {
           </button>
         </div>
         {notice ? <p className="notice">{notice}</p> : null}
-        <p className="login-guide">Gemini는 OAuth 환경변수 설정 후 로그인할 수 있고, Codex/Claude는 공식 OAuth 사용량 API 연결 전까지 지원 예정입니다.</p>
+        <p className="login-guide">각 모델 카드 안에 토큰을 입력하면 로그인 상태가 유지됩니다.</p>
       </section>
 
       <section className="usage-list" aria-live="polite">
@@ -194,7 +217,7 @@ export default function App() {
               usage={usage}
               isAuthenticated={Boolean(snapshot?.settings.providers[usage.provider].auth)}
               busy={busy}
-              onOAuthLogin={oauthLogin}
+              onTokenLogin={tokenLogin}
               onLogout={logout}
               help={loginHelp[usage.provider]}
             />

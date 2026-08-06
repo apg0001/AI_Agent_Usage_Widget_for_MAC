@@ -2,10 +2,16 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from "el
 import path from "node:path";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { startOAuthLogin } from "./oauthProviders.js";
-import { clearProviderAuth, getSettings, setMenuBarDisplayMode, setProviderVisibility } from "./settingsStore.js";
+import {
+  clearProviderAuth,
+  getSettings,
+  setMenuBarDisplayMode,
+  setProviderToken,
+  setProviderVisibility
+} from "./settingsStore.js";
 import { getTrayTitle } from "./trayTitle.js";
 import { fetchUsageSnapshot } from "./usageProviders.js";
-import { ProviderId, UsageSnapshot } from "../shared/types.js";
+import { ProviderId, TokenLoginPayload, UsageSnapshot } from "../shared/types.js";
 
 const isDev = !app.isPackaged;
 
@@ -146,6 +152,10 @@ function registerIpc() {
   });
   ipcMain.handle("settings:menu-bar-display-mode", async (_event, mode: "icons" | "iconsWithPercent") => {
     setMenuBarDisplayMode(mode);
+    return refreshUsage();
+  });
+  ipcMain.handle("provider:token-login", async (_event, payload: TokenLoginPayload) => {
+    setProviderToken(payload.provider, payload.token);
     return refreshUsage();
   });
   ipcMain.handle("provider:oauth-login", async (_event, provider: ProviderId) => {

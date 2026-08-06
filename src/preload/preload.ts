@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { ProviderId, UsageSnapshot } from "../shared/types.js";
+import { ProviderId, TokenLoginPayload, UsageSnapshot } from "../shared/types.js";
 
 const api = {
   getUsage: () => ipcRenderer.invoke("usage:get") as Promise<UsageSnapshot>,
@@ -8,6 +8,8 @@ const api = {
     ipcRenderer.invoke("provider:visibility", provider, visible) as Promise<UsageSnapshot>,
   setMenuBarDisplayMode: (mode: "icons" | "iconsWithPercent") =>
     ipcRenderer.invoke("settings:menu-bar-display-mode", mode) as Promise<UsageSnapshot>,
+  tokenLogin: (payload: TokenLoginPayload) =>
+    ipcRenderer.invoke("provider:token-login", payload) as Promise<UsageSnapshot>,
   oauthLogin: (provider: ProviderId) =>
     ipcRenderer.invoke("provider:oauth-login", provider) as Promise<{
       result: import("../shared/types.js").OAuthLoginResult;

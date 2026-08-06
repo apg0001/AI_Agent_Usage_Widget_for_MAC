@@ -155,6 +155,47 @@ footer,
   cursor: pointer;
 }
 
+.token-login-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 8px;
+}
+
+.token-login-form input {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 10px;
+  outline: none;
+  font-size: 12px;
+}
+
+.token-login-form input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.token-login-form button {
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.token-login-form button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
 .logout {
   background: #fee2e2;
   color: #991b1b;
