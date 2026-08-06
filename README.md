@@ -74,6 +74,32 @@ npm run package:linux
 
 Windows/Linux 배포 파일은 각 OS에서 같은 저장소를 clone한 뒤 해당 플랫폼 명령으로 빌드하는 방식을 권장합니다. macOS에서 교차 빌드를 시도할 수는 있지만 코드서명, NSIS, AppImage/deb 도구 체인 때문에 CI 또는 실제 대상 OS에서 빌드하는 편이 안정적입니다.
 
+Windows로 가져가서 빌드:
+
+```powershell
+git clone https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC.git
+cd AI_Agent_Usage_Widget_for_MAC
+git switch develop
+npm install
+npm run verify
+npm run package:win
+```
+
+Windows 산출물은 `dist` 아래의 `Quota Bar Setup ... .exe` 또는 portable `.exe`로 생성됩니다. Claude의 Windows Credential Manager fallback은 아직 후속 작업 대상이라, 현재 Windows에서는 Claude Code가 파일로 저장한 로컬 OAuth 세션을 우선 확인합니다.
+
+Linux로 가져가서 빌드:
+
+```bash
+git clone https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC.git
+cd AI_Agent_Usage_Widget_for_MAC
+git switch develop
+npm install
+npm run verify
+npm run package:linux
+```
+
+Linux 산출물은 `dist` 아래의 AppImage 또는 deb 파일로 생성됩니다. Linux Secret Service fallback도 후속 작업 대상입니다.
+
 ## 검증 및 테스트 하네스
 
 ```bash
@@ -86,6 +112,8 @@ npm run verify
 
 - 단위 테스트: `tests/unit`에서 사용량 수집 adapter의 표시 필터, 로그아웃 상태, 사용량 계산을 검증합니다.
 - 통합 테스트: `tests/integration`에서 로그인, 표시 모델 선택, 로그아웃 흐름을 한 번에 검증합니다.
+- 플랫폼 빌드 하네스: `tests/integration/crossPlatformBuild.test.ts`에서 `package:mac`, `package:win`, `package:linux` 스크립트와 macOS/Windows/Linux 패키징 타깃을 검증합니다.
+- 플랫폼 분기 하네스: `tests/integration/localSessionDetection.test.ts`에서 macOS Keychain 어댑터와 Windows/Linux 어댑터 선택 분기를 검증합니다.
 - 전체 검증: `npm run verify`가 타입 검사, 린트, 단위 테스트, 통합 테스트, 빌드를 순서대로 실행합니다.
 
 ## 작업 규칙
