@@ -1,0 +1,63 @@
+{
+  "name": "ai-agent-usage-widget-for-mac",
+  "version": "0.1.0",
+  "description": "macOS menu bar widget for monitoring AI agent usage.",
+  "main": "dist/main/main/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on tcp:5173 dist/main/main/main.js && electron .\"",
+    "build": "tsc -p tsconfig.json && vite build && electron-builder --dir",
+    "package": "npm run build && electron-builder",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run --config vitest.config.ts tests/unit",
+    "test:integration": "vitest run --config vitest.config.ts tests/integration",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build"
+  },
+  "keywords": [
+    "macos",
+    "menu-bar",
+    "ai",
+    "usage"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron-store": "^10.0.1",
+    "lucide-react": "^0.468.0",
+    "vite": "^6.0.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "wait-on": "^8.0.1",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "com.apg0001.aiusagewidget",
+    "productName": "AI Usage Widget",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    }
+  }
+}
