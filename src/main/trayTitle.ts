@@ -1,7 +1,7 @@
 import { PROVIDERS, UsageSnapshot } from "../shared/types.js";
 
 const providerInitials = {
-  codex: "C",
+  codex: "Co",
   claude: "Cl",
   gemini: "G"
 } as const;
