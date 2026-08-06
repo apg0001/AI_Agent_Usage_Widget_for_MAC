@@ -10,6 +10,8 @@ describe("로컬 세션 및 기간별 사용량 연결", () => {
     expect(usageProviders).toContain("https://chatgpt.com/backend-api/wham/usage");
     expect(usageProviders).toContain('".codex"');
     expect(usageProviders).toContain("Claude Code-credentials");
+    expect(usageProviders).toContain("dump-keychain");
+    expect(usageProviders).toContain("claudeAiOauth");
     expect(usageProviders).toContain("claude-code/2.1.121");
     expect(usageProviders).toContain(".gemini");
     expect(usageProviders).toContain("windows");
@@ -17,6 +19,7 @@ describe("로컬 세션 및 기간별 사용량 연결", () => {
     expect(renderer).toContain("기간별 사용량");
     expect(renderer).toContain("usage-window-list");
     expect(renderer).not.toContain("API로 연결됨");
+    expect(renderer).not.toContain("Codex/Claude는 로컬 세션을 우선 감지하고");
     expect(renderer).not.toContain("Gemini 토큰");
   });
 });

@@ -14,7 +14,7 @@ const statusLabel: Record<ProviderUsage["status"], string> = {
 const loginHelp: Record<ProviderId, string> = {
   codex: "Codex CLI 로그인이 없으면 토큰을 저장할 수 있습니다.",
   claude: "Claude Code에서 로그인하면 자동으로 확인합니다.",
-  gemini: "Gemini는 Google OAuth로 로그인합니다."
+  gemini: "터미널에서 gemini를 실행해 브라우저 로그인을 마치면 자동 감지됩니다."
 };
 
 function TokenLoginForm({
@@ -269,7 +269,6 @@ export default function App() {
           </button>
         </div>
         {notice ? <p className="notice">{notice}</p> : null}
-        <p className="login-guide">Codex/Claude는 로컬 세션을 우선 감지하고, Gemini는 Google OAuth로 로그인합니다.</p>
       </section>
 
       <section className="usage-list" aria-live="polite">

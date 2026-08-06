@@ -18,7 +18,7 @@ macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인
 
 - Codex: `~/.codex/auth.json` access token으로 `https://chatgpt.com/backend-api/wham/usage`를 호출합니다. 실패하면 `~/.codex/sessions`의 rate limit 기록에서 사용률과 초기화 시간을 읽습니다.
 - Claude: Claude Code가 저장한 로컬 OAuth 세션 또는 macOS Keychain을 사용해 Anthropic usage API를 호출합니다. 5시간/주간 창과 초기화 시간을 표시합니다.
-- Gemini: `~/.gemini/oauth_creds.json` 로그인 상태를 감지하거나 앱에서 Google OAuth로 로그인합니다. 실제 Gemini 사용량 API 연결은 추가 확인이 필요합니다.
+- Gemini: `~/.gemini/oauth_creds.json` 로그인 상태를 감지합니다. 다만 2026년 6월 18일부터 Gemini CLI의 개인 계정 Google 로그인은 Antigravity CLI 전환 대상입니다. 기존 세션이 없으면 Antigravity CLI 전환 또는 API key 흐름이 필요합니다.
 
 기간별 사용량:
 
@@ -33,12 +33,12 @@ macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인
 1. 표시할 모델 토글을 켭니다.
 2. Codex는 CLI 세션이 있으면 자동으로 연결됩니다. 필요하면 해당 카드의 토큰 입력칸에 토큰을 넣고 `로그인`을 누릅니다.
 3. Claude는 터미널에서 `claude /login`을 실행하면 앱이 Claude Code 세션을 자동으로 확인합니다.
-4. Gemini는 해당 카드의 `Google OAuth 로그인`을 눌러 브라우저에서 로그인합니다.
+4. Gemini는 기존 `~/.gemini/oauth_creds.json` 세션이 있으면 자동 감지됩니다. 개인 계정에서 `gemini` Google 로그인이 막히면 Antigravity CLI로 전환하거나 API key 인증을 사용해야 합니다.
 5. 앱에 저장된 인증으로 로그인된 경우 같은 위치가 `로그아웃`으로 바뀝니다.
 
 앱에 저장된 로그인 상태는 userData 설정 파일에 저장되어 앱을 다시 실행해도 유지됩니다.
 
-Gemini OAuth를 사용하려면 실행 환경에 `GEMINI_OAUTH_CLIENT_ID`, `GEMINI_OAUTH_CLIENT_SECRET`가 필요합니다. 이 값이 없으면 앱이 설정 필요 메시지를 보여줍니다.
+앱 안의 Gemini `Google OAuth 로그인` 버튼을 사용하려면 실행 환경에 `GEMINI_OAUTH_CLIENT_ID`, `GEMINI_OAUTH_CLIENT_SECRET`가 필요합니다. 일반 배포판에서는 Google의 Gemini CLI/Antigravity 전환 정책 때문에 기존 CLI 세션 또는 API key 기반 흐름을 우선 확인해야 합니다.
 
 ## 실행
 
