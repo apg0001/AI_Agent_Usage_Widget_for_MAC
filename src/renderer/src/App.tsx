@@ -1,6 +1,6 @@
 import { Check, KeyRound, LogOut, Power, RefreshCw } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { ProviderId, ProviderUsage, PROVIDERS, TokenLoginPayload, UsageSnapshot } from "../../shared/types";
+import { ProviderAuth, ProviderId, ProviderUsage, PROVIDERS, TokenLoginPayload, UsageSnapshot } from "../../shared/types";
 import "./styles.css";
 
 const statusLabel: Record<ProviderUsage["status"], string> = {
@@ -12,9 +12,16 @@ const statusLabel: Record<ProviderUsage["status"], string> = {
 };
 
 const loginHelp: Record<ProviderId, string> = {
-  codex: "Codex 토큰을 저장하면 앱 재실행 후에도 로그인 상태가 유지됩니다.",
-  claude: "Claude 토큰을 저장하면 앱 재실행 후에도 로그인 상태가 유지됩니다.",
-  gemini: "Gemini 토큰을 저장하면 앱 재실행 후에도 로그인 상태가 유지됩니다."
+  codex: "Codex CLI/확장 세션이 있으면 자동 연결됩니다. 필요하면 토큰을 저장할 수 있습니다.",
+  claude: "Claude Code 세션이 있으면 자동 연결됩니다. 필요하면 토큰을 저장할 수 있습니다.",
+  gemini: "Gemini CLI OAuth 세션이 있으면 자동 감지됩니다. 앱에서는 Google OAuth로 로그인합니다."
+};
+
+const sourceDescription: Record<NonNullable<ProviderUsage["source"]>, string> = {
+  api: "API로 연결됨",
+  demo: "데모 데이터",
+  local: "로컬 세션으로 연결됨",
+  token: "토큰으로 연결됨"
 };
 
 function TokenLoginForm({
@@ -55,6 +62,23 @@ function TokenLoginForm({
   );
 }
 
+function OAuthLoginButton({
+  provider,
+  busy,
+  onOAuthLogin
+}: {
+  provider: ProviderId;
+  busy: boolean;
+  onOAuthLogin: (provider: ProviderId) => Promise<void>;
+}) {
+  return (
+    <button className="oauth-login-button" type="button" onClick={() => onOAuthLogin(provider)} disabled={busy}>
+      <KeyRound size={14} />
+      Google OAuth 로그인
+    </button>
+  );
+}
+
 function formatTime(value?: string) {
   if (!value) {
     return "-";
@@ -69,19 +93,25 @@ function formatTime(value?: string) {
 
 function UsageRow({
   usage,
-  isAuthenticated,
+  savedAuth,
   busy,
   onTokenLogin,
+  onOAuthLogin,
   onLogout,
   help
 }: {
   usage: ProviderUsage;
-  isAuthenticated: boolean;
+  savedAuth?: ProviderAuth;
   busy: boolean;
   onTokenLogin: (payload: TokenLoginPayload) => Promise<void>;
+  onOAuthLogin: (provider: ProviderId) => Promise<void>;
   onLogout: (provider: ProviderId) => Promise<void>;
   help: string;
 }) {
+  const hasSavedAuth = Boolean(savedAuth);
+  const isConnected = hasSavedAuth || usage.source === "local" || usage.source === "api" || usage.source === "token";
+  const canUseOAuth = usage.provider === "gemini";
+
   return (
     <section className={`usage-row ${usage.status}`}>
       <div className="row-top">
@@ -89,14 +119,22 @@ function UsageRow({
           <h2>{usage.label}</h2>
           <p>{usage.message ?? `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()} ${usage.unit}`}</p>
         </div>
-        {isAuthenticated ? (
+        {hasSavedAuth ? (
           <button className="card-auth-button logout" type="button" onClick={() => onLogout(usage.provider)} disabled={busy}>
             <LogOut size={14} />
             로그아웃
           </button>
         ) : null}
       </div>
-      {!isAuthenticated ? <TokenLoginForm provider={usage.provider} busy={busy} onTokenLogin={onTokenLogin} /> : null}
+      {!isConnected && canUseOAuth ? (
+        <OAuthLoginButton provider={usage.provider} busy={busy} onOAuthLogin={onOAuthLogin} />
+      ) : null}
+      {!isConnected && !canUseOAuth ? (
+        <TokenLoginForm provider={usage.provider} busy={busy} onTokenLogin={onTokenLogin} />
+      ) : null}
+      {isConnected && !hasSavedAuth ? (
+        <p className="source-note">{sourceDescription[usage.source ?? "local"]}</p>
+      ) : null}
       <strong className="status-badge">{statusLabel[usage.status]}</strong>
       <div className="meter" aria-label={`${usage.label} 사용률 ${usage.percent}%`}>
         <span style={{ width: `${usage.percent}%` }} />
@@ -105,6 +143,18 @@ function UsageRow({
         <span>{usage.percent}%</span>
         <span>{formatTime(usage.updatedAt)}</span>
       </div>
+      {usage.resetRemaining ? <p className="reset-time">초기화까지 {usage.resetRemaining}</p> : null}
+      {usage.windows?.length ? (
+        <div className="window-grid" aria-label={`${usage.label} 기간별 사용량`}>
+          {usage.windows.map((window) => (
+            <div key={window.id} className="window-chip">
+              <span>{window.label}</span>
+              <strong>{window.percent}%</strong>
+              {window.resetRemaining ? <small>초기화 {window.resetRemaining}</small> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <p className="provider-help">{help}</p>
     </section>
   );
@@ -137,6 +187,17 @@ export default function App() {
   async function tokenLogin(payload: TokenLoginPayload) {
     await run(() => window.aiUsage.tokenLogin(payload));
     setNotice(`${PROVIDERS.find((provider) => provider.id === payload.provider)?.label} 토큰 로그인이 저장되었습니다.`);
+  }
+
+  async function oauthLogin(provider: ProviderId) {
+    setBusy(true);
+    try {
+      const { result, snapshot } = await window.aiUsage.oauthLogin(provider);
+      setSnapshot(snapshot);
+      setNotice(result.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function logout(provider: ProviderId) {
@@ -206,7 +267,7 @@ export default function App() {
           </button>
         </div>
         {notice ? <p className="notice">{notice}</p> : null}
-        <p className="login-guide">각 모델 카드 안에 토큰을 입력하면 로그인 상태가 유지됩니다.</p>
+        <p className="login-guide">Codex/Claude는 로컬 세션을 우선 감지하고, Gemini는 Google OAuth로 로그인합니다.</p>
       </section>
 
       <section className="usage-list" aria-live="polite">
@@ -215,9 +276,10 @@ export default function App() {
             <UsageRow
               key={usage.provider}
               usage={usage}
-              isAuthenticated={Boolean(snapshot?.settings.providers[usage.provider].auth)}
+              savedAuth={snapshot?.settings.providers[usage.provider].auth}
               busy={busy}
               onTokenLogin={tokenLogin}
+              onOAuthLogin={oauthLogin}
               onLogout={logout}
               help={loginHelp[usage.provider]}
             />

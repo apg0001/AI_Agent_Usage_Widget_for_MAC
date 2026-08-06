@@ -52,4 +52,26 @@ describe("fetchUsageSnapshot", () => {
     expect(codex?.limit).toBe(500);
     expect(codex?.percent).toBeGreaterThan(0);
   });
+
+  it("Gemini는 OAuth 인증 상태를 로그인으로 표시한다", async () => {
+    const usage = await fetchUsageSnapshot({
+      ...baseSettings,
+      providers: {
+        ...baseSettings.providers,
+        gemini: {
+          visible: true,
+          auth: {
+            type: "oauth",
+            accessToken: "gemini-oauth-token",
+            accountLabel: "Google OAuth"
+          }
+        }
+      }
+    });
+
+    const gemini = usage.find((item) => item.provider === "gemini");
+    expect(gemini?.status).toBe("ok");
+    expect(gemini?.source).toBe("api");
+    expect(gemini?.windows?.some((window) => window.id === "daily")).toBe(true);
+  });
 });

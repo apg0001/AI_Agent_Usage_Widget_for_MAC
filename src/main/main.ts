@@ -155,6 +155,9 @@ function registerIpc() {
     return refreshUsage();
   });
   ipcMain.handle("provider:token-login", async (_event, payload: TokenLoginPayload) => {
+    if (payload.provider === "gemini") {
+      throw new Error("Gemini는 Google OAuth 로그인만 지원합니다.");
+    }
     setProviderToken(payload.provider, payload.token);
     return refreshUsage();
   });
