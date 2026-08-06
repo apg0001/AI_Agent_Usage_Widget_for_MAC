@@ -220,6 +220,18 @@ footer,
   font-weight: 700;
 }
 
+.login-guide,
+.provider-help {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.login-guide {
+  flex-basis: 100%;
+}
+
 .usage-list {
   flex: 1;
   overflow: auto;

@@ -11,6 +11,12 @@ const statusLabel: Record<ProviderUsage["status"], string> = {
   error: "오류"
 };
 
+const loginHelp: Record<ProviderId, string> = {
+  codex: "Codex/OpenAI OAuth 사용량 연동은 공식 API 확인 후 연결됩니다.",
+  claude: "Claude OAuth 사용량 연동은 공식 API 확인 후 연결됩니다.",
+  gemini: "Gemini는 Google OAuth Client ID/Secret 환경변수 설정 후 브라우저 로그인이 가능합니다."
+};
+
 function formatTime(value?: string) {
   if (!value) {
     return "-";
@@ -28,13 +34,15 @@ function UsageRow({
   isAuthenticated,
   busy,
   onOAuthLogin,
-  onLogout
+  onLogout,
+  help
 }: {
   usage: ProviderUsage;
   isAuthenticated: boolean;
   busy: boolean;
   onOAuthLogin: (provider: ProviderId) => Promise<void>;
   onLogout: (provider: ProviderId) => Promise<void>;
+  help: string;
 }) {
   return (
     <section className={`usage-row ${usage.status}`}>
@@ -68,6 +76,7 @@ function UsageRow({
         <span>{usage.percent}%</span>
         <span>{formatTime(usage.updatedAt)}</span>
       </div>
+      <p className="provider-help">{help}</p>
     </section>
   );
 }
@@ -174,6 +183,7 @@ export default function App() {
           </button>
         </div>
         {notice ? <p className="notice">{notice}</p> : null}
+        <p className="login-guide">Gemini는 OAuth 환경변수 설정 후 로그인할 수 있고, Codex/Claude는 공식 OAuth 사용량 API 연결 전까지 지원 예정입니다.</p>
       </section>
 
       <section className="usage-list" aria-live="polite">
@@ -186,6 +196,7 @@ export default function App() {
               busy={busy}
               onOAuthLogin={oauthLogin}
               onLogout={logout}
+              help={loginHelp[usage.provider]}
             />
           ))
         ) : (

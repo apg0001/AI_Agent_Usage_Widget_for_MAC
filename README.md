@@ -27,6 +27,13 @@ open "dist/mac-arm64/AI Usage Widget.app"
 
 Codex/OpenAI와 Claude는 현재 앱에서 브라우저 OAuth를 바로 완료하지 않고 지원 예정 메시지를 표시합니다. 각 제공자의 공식 개인 사용량 조회 API와 OAuth 정책이 확정되면 `src/main/oauthProviders.ts`와 `src/main/usageProviders.ts`의 adapter를 연결합니다.
 
+앱에서 로그인하는 방법:
+
+1. 표시할 모델 토글을 켭니다.
+2. 해당 모델 카드 안의 `로그인` 버튼을 누릅니다.
+3. Gemini는 `GEMINI_OAUTH_CLIENT_ID`, `GEMINI_OAUTH_CLIENT_SECRET`가 설정되어 있을 때 브라우저 로그인을 진행합니다.
+4. 로그인이 완료되면 같은 버튼 위치가 `로그아웃`으로 바뀝니다.
+
 ## 실행
 
 ```bash
