@@ -267,7 +267,6 @@ footer,
   font-weight: 700;
 }
 
-.login-guide,
 .provider-help,
 .reset-time {
   margin: 0;
@@ -279,10 +278,6 @@ footer,
 .reset-time {
   color: #334155;
   font-weight: 800;
-}
-
-.login-guide {
-  flex-basis: 100%;
 }
 
 .usage-list {

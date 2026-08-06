@@ -96,7 +96,7 @@ async function startGeminiOAuth(): Promise<OAuthLoginResult> {
     return {
       provider: "gemini",
       status: "missing-config",
-      message: "GEMINI_OAUTH_CLIENT_ID와 GEMINI_OAUTH_CLIENT_SECRET 설정이 필요합니다."
+      message: "앱 OAuth 설정이 없습니다. 터미널에서 gemini를 실행해 브라우저 로그인을 완료하세요."
     };
   }
 
