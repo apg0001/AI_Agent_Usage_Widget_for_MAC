@@ -102,6 +102,8 @@ Linux 산출물은 `dist` 아래의 AppImage 또는 deb 파일로 생성됩니�
 
 ## 검증 및 테스트 하네스
 
+플랫폼별 검증, 패키징, 산출물 확인 절차는 `HARNESS.md`에 별도 정리되어 있습니다.
+
 ```bash
 npm run typecheck
 npm run lint
