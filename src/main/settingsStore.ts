@@ -40,6 +40,9 @@ function readStore(): StoreShape {
       if (providers[provider].auth && !["token", "oauth"].includes(providers[provider].auth.type)) {
         delete providers[provider].auth;
       }
+      if (provider === "claude" && providers[provider].auth?.type === "token") {
+        delete providers[provider].auth;
+      }
     }
 
     return {

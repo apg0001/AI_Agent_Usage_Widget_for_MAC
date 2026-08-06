@@ -15,6 +15,8 @@ describe("로컬 세션 및 기간별 사용량 연결", () => {
     expect(usageProviders).toContain("windows");
     expect(renderer).toContain("Google OAuth 로그인");
     expect(renderer).toContain("기간별 사용량");
+    expect(renderer).toContain("usage-window-list");
+    expect(renderer).not.toContain("API로 연결됨");
     expect(renderer).not.toContain("Gemini 토큰");
   });
 });

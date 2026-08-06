@@ -72,6 +72,21 @@ function createWindow(input: UsageWindowInput): UsageLimitWindow {
   };
 }
 
+function createMissingWindow(id: "primary" | "weekly", label: string): UsageLimitWindow {
+  return {
+    id,
+    label,
+    percent: 0,
+    message: "데이터 없음"
+  };
+}
+
+function ensureLimitWindows(windows: UsageLimitWindow[]): UsageLimitWindow[] {
+  const primary = windows.find((window) => window.id === "primary") ?? createMissingWindow("primary", "5시간 한도");
+  const weekly = windows.find((window) => window.id === "weekly") ?? createMissingWindow("weekly", "주간 한도");
+  return [primary, weekly];
+}
+
 function isUsageWindow(window: UsageLimitWindow | null): window is UsageLimitWindow {
   return Boolean(window);
 }
@@ -84,7 +99,7 @@ function seededUsage(provider: ProviderId, credential?: string) {
       unit: "requests" as const,
       percent: 0,
       status: "signed-out" as const,
-      message: "로그인이 필요합니다."
+      message: provider === "claude" ? "터미널에서 claude /login을 먼저 실행하세요." : "로그인이 필요합니다."
     };
   }
 
@@ -102,20 +117,25 @@ function seededUsage(provider: ProviderId, credential?: string) {
     unit: "requests" as const,
     percent,
     status: getStatus(percent),
-    message: "토큰 기반 데모 사용량입니다. 실제 API 어댑터 연결이 필요합니다.",
     source: "token" as const,
-    windows: [
-      createWindow({ id: "primary", label: "5시간", percent, resetsAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString() }),
+    windows: provider === "gemini" ? [
       createWindow({
         id: "daily",
         label: "오늘",
         percent: Math.max(0, percent - 12),
         resetsAt: nextLocalMidnight().toISOString(),
         message: "토큰 기반 추정"
+      })
+    ] : [
+      createWindow({
+        id: "primary",
+        label: "5시간 한도",
+        percent,
+        resetsAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
       }),
       createWindow({
         id: "weekly",
-        label: "주간",
+        label: "주간 한도",
         percent: Math.max(0, percent - 20),
         resetsAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
         message: "토큰 기반 추정"
@@ -184,7 +204,7 @@ function readLatestCodexUsage() {
           primary && typeof primary.used_percent === "number"
             ? createWindow({
                 id: "primary",
-                label: "5시간",
+                label: "5시간 한도",
                 percent: primary.used_percent,
                 resetsAt:
                   unixSecondsToIso(primary.resets_at) ??
@@ -196,7 +216,7 @@ function readLatestCodexUsage() {
           secondary && typeof secondary.used_percent === "number"
             ? createWindow({
                 id: "weekly",
-                label: "주간",
+                label: "주간 한도",
                 percent: secondary.used_percent,
                 resetsAt:
                   unixSecondsToIso(secondary.resets_at) ??
@@ -214,8 +234,8 @@ function readLatestCodexUsage() {
           status: getStatus(percent),
           resetsAt,
           source: "local" as const,
-          windows,
-          message: `Codex 로컬 세션에서 불러옴${rateLimit?.plan_type ? ` (${rateLimit.plan_type})` : ""}`
+          windows: ensureLimitWindows(windows),
+          message: rateLimit?.plan_type
         });
       } catch {
         continue;
@@ -276,14 +296,24 @@ async function fetchCodexUsage() {
 
   const percent = clampPercent(mainWindow.used_percent);
   const resetsAt = unixSecondsToIso(mainWindow.reset_at);
-  const windows = [
+  const windows = ensureLimitWindows([
     primary && typeof primary.used_percent === "number"
-      ? createWindow({ id: "primary", label: "5시간", percent: primary.used_percent, resetsAt: unixSecondsToIso(primary.reset_at) })
+      ? createWindow({
+          id: "primary",
+          label: "5시간 한도",
+          percent: primary.used_percent,
+          resetsAt: unixSecondsToIso(primary.reset_at)
+        })
       : null,
     weekly && typeof weekly.used_percent === "number"
-      ? createWindow({ id: "weekly", label: "주간", percent: weekly.used_percent, resetsAt: unixSecondsToIso(weekly.reset_at) })
+      ? createWindow({
+          id: "weekly",
+          label: "주간 한도",
+          percent: weekly.used_percent,
+          resetsAt: unixSecondsToIso(weekly.reset_at)
+        })
       : null
-  ].filter(isUsageWindow);
+  ].filter(isUsageWindow));
 
   return withReset({
     used: percent,
@@ -294,7 +324,7 @@ async function fetchCodexUsage() {
     resetsAt,
     source: "api" as const,
     windows,
-    message: `Codex 로그인 세션으로 불러옴${data.plan_type ? ` (${data.plan_type})` : ""}`
+    message: data.plan_type
   });
 }
 
@@ -369,11 +399,11 @@ async function fetchClaudeUsage(credential?: string) {
     status: getStatus(percent),
     resetsAt: window.resets_at,
     source: "api" as const,
-    windows: [
+    windows: ensureLimitWindows([
       data.five_hour && typeof data.five_hour.utilization === "number"
         ? createWindow({
             id: "primary",
-            label: "5시간",
+            label: "5시간 한도",
             percent: data.five_hour.utilization,
             resetsAt: data.five_hour.resets_at
           })
@@ -381,13 +411,13 @@ async function fetchClaudeUsage(credential?: string) {
       data.seven_day && typeof data.seven_day.utilization === "number"
         ? createWindow({
             id: "weekly",
-            label: "주간",
+            label: "주간 한도",
             percent: data.seven_day.utilization,
             resetsAt: data.seven_day.resets_at
           })
         : null
-    ].filter(isUsageWindow),
-    message: "Claude Code 로컬 세션으로 불러옴"
+    ].filter(isUsageWindow)),
+    message: undefined
   });
 }
 
@@ -413,7 +443,7 @@ function readGeminiLocalSession() {
         message: "Gemini OAuth 세션 감지"
       })
     ],
-    message: "Gemini 로컬 로그인 감지됨. 사용량 API 연결이 필요합니다."
+    message: "Gemini 사용량 API 연결 대기"
   });
 }
 
@@ -434,7 +464,7 @@ function geminiOAuthUsage() {
         message: "Google OAuth 로그인"
       })
     ],
-    message: "Gemini OAuth 로그인됨. 사용량 API 연결이 필요합니다."
+    message: "Gemini 사용량 API 연결 대기"
   });
 }
 
@@ -454,7 +484,7 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
         : isLocalProviderDetectionEnabled()
           ? await fetchClaudeUsage().catch(() => null)
           : null;
-      return claudeUsage ?? seededUsage(provider.id, credential);
+      return claudeUsage ?? seededUsage(provider.id, undefined);
     }
     if (provider.id === "gemini") {
       return (

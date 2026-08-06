@@ -74,4 +74,24 @@ describe("fetchUsageSnapshot", () => {
     expect(gemini?.source).toBe("api");
     expect(gemini?.windows?.some((window) => window.id === "daily")).toBe(true);
   });
+
+  it("Claude는 앱 토큰 인증을 로그인 상태로 보지 않는다", async () => {
+    const usage = await fetchUsageSnapshot({
+      ...baseSettings,
+      providers: {
+        ...baseSettings.providers,
+        claude: {
+          visible: true,
+          auth: {
+            type: "token",
+            accessToken: "claude-token"
+          }
+        }
+      }
+    });
+
+    const claude = usage.find((item) => item.provider === "claude");
+    expect(claude?.status).toBe("signed-out");
+    expect(claude?.message).toContain("claude /login");
+  });
 });
