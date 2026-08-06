@@ -1,6 +1,6 @@
-# AI Agent Usage Widget for macOS
+# Quota Bar for macOS
 
-macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인하는 Electron 기반 위젯입니다.
+macOS 상단 메뉴바에서 Codex, Claude, Gemini 사용량을 빠르게 확인하는 Electron 기반 Quota Bar입니다.
 
 ## 주요 기능
 

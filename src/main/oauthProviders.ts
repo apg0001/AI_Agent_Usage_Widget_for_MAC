@@ -38,7 +38,7 @@ function createCallbackServer(expectedState: string) {
         return;
       }
 
-      response.end("AI Usage Widget 로그인 완료. 이 창을 닫아도 됩니다.");
+      response.end("Quota Bar 로그인 완료. 이 창을 닫아도 됩니다.");
       server.close();
       resolve({ code, redirectUri });
     });

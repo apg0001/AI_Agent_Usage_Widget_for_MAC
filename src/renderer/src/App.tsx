@@ -213,8 +213,8 @@ export default function App() {
     <main className="shell">
       <header className="titlebar">
         <div>
-          <p>AI 사용량</p>
-          <h1>Menu Bar Monitor</h1>
+          <p>AI quota tracker</p>
+          <h1>Quota Bar</h1>
         </div>
         <div className="toolbar">
           <button type="button" onClick={() => run(window.aiUsage.refreshUsage)} disabled={busy} title="새로고침">

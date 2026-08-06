@@ -120,7 +120,7 @@ function toggleWindow() {
 
 function updateTray(snapshot: UsageSnapshot) {
   tray?.setTitle(getTrayTitle(snapshot));
-  tray?.setToolTip("AI 사용량 위젯");
+  tray?.setToolTip("Quota Bar");
 }
 
 async function refreshUsage() {
@@ -180,7 +180,7 @@ app.whenReady().then(() => {
   createWindow();
   tray = new Tray(createTrayIcon());
   const trayMenu = Menu.buildFromTemplate([
-    { label: "AI 사용량 열기", click: toggleWindow },
+    { label: "Quota Bar 열기", click: toggleWindow },
     { type: "separator" },
     { label: "종료", click: () => app.quit() }
   ]);
