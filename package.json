@@ -4,7 +4,7 @@
   "description": "Cross-platform tray app for monitoring AI quota usage.",
   "main": "dist/main/main/main.js",
   "scripts": {
-    "dev": "npm run build:main && concurrently -k \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on tcp:5173 dist/main/main/main.js && env -u ELECTRON_RUN_AS_NODE electron .\"",
+    "dev": "npm run build:main && concurrently -k \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on tcp:5173 dist/main/main/main.js && node scripts/dev-electron.js\"",
     "build:main": "tsc -p tsconfig.json",
     "compile": "tsc -p tsconfig.json && vite build",
     "build": "npm run compile && electron-builder --dir",
@@ -32,9 +32,9 @@
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "lucide-react": "^0.468.0",
-    "vite": "^6.0.7",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -47,8 +47,8 @@
     "electron-builder": "^25.1.8",
     "eslint": "^9.17.0",
     "typescript": "^5.7.2",
-    "wait-on": "^8.0.1",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "wait-on": "^8.0.1"
   },
   "build": {
     "appId": "com.apg0001.aiusagewidget",
@@ -60,12 +60,14 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         "nsis",
         "portable"
@@ -73,10 +75,16 @@
     },
     "linux": {
       "category": "Utility",
+      "icon": "build/icon.png",
       "target": [
         "AppImage",
         "deb"
       ]
     }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.21.5": true
   }
 }

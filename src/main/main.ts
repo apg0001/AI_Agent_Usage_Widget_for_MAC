@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, screen, Tray } from "electron";
 import path from "node:path";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { startOAuthLogin } from "./oauthProviders.js";
@@ -10,6 +10,8 @@ import {
   setProviderToken,
   setProviderVisibility
 } from "./settingsStore.js";
+import { buildStaticTrayIconSvg, buildUsageTrayIconSvg, TRAY_ICON_RENDER_SIZE } from "./trayIcon.js";
+import { destroyTrayIconRenderer, renderSvgToNativeImage } from "./trayIconRenderer.js";
 import { getTrayTitle } from "./trayTitle.js";
 import { fetchUsageSnapshot } from "./usageProviders.js";
 import { ProviderId, TokenLoginPayload, UsageSnapshot } from "../shared/types.js";
@@ -32,14 +34,8 @@ function showWindow() {
   window.moveTop();
 }
 
-function createTrayIcon() {
-  const svg = encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-      <rect width="32" height="32" rx="7" fill="#111827"/>
-      <path d="M9 21L14 8h4l5 13h-4l-.9-2.8h-4.4L12.8 21H9zm5.5-5.8h2.9L16 10.8l-1.5 4.4z" fill="#fff"/>
-    </svg>
-  `);
-  const image = nativeImage.createFromDataURL(`data:image/svg+xml;charset=UTF-8,${svg}`);
+async function createStaticTrayIcon() {
+  const image = await renderSvgToNativeImage(buildStaticTrayIconSvg(), 32);
   image.setTemplateImage(true);
   return image;
 }
@@ -119,16 +115,22 @@ function toggleWindow() {
   showWindow();
 }
 
-function updateTray(snapshot: UsageSnapshot) {
-  tray?.setTitle(getTrayTitle(snapshot));
-  tray?.setToolTip("Quota Bar");
+async function updateTray(snapshot: UsageSnapshot) {
+  if (platformAdapter.id === "mac") {
+    tray?.setTitle(getTrayTitle(snapshot));
+  } else {
+    // macOS 전용인 Tray.setTitle 대신 아이콘 비트맵에 사용량 텍스트를 직접 그린다.
+    const image = await renderSvgToNativeImage(buildUsageTrayIconSvg(snapshot), TRAY_ICON_RENDER_SIZE);
+    tray?.setImage(image);
+  }
+  tray?.setToolTip(`Quota Bar\n${getTrayTitle(snapshot)}`);
 }
 
 async function refreshUsage() {
   const settings = getSettings();
   const usage = await fetchUsageSnapshot(settings);
   latestSnapshot = { settings, usage };
-  updateTray(latestSnapshot);
+  await updateTray(latestSnapshot);
   window?.webContents.send("usage:snapshot", latestSnapshot);
   return latestSnapshot;
 }
@@ -174,12 +176,12 @@ function registerIpc() {
   ipcMain.handle("app:quit", () => app.quit());
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   platformAdapter.hideFromDock(app);
   Menu.setApplicationMenu(null);
   registerIpc();
   createWindow();
-  tray = new Tray(createTrayIcon());
+  tray = new Tray(await createStaticTrayIcon());
   const trayMenu = Menu.buildFromTemplate([
     { label: "Quota Bar 열기", click: toggleWindow },
     { type: "separator" },
@@ -204,4 +206,5 @@ app.on("before-quit", () => {
   if (refreshTimer) {
     clearInterval(refreshTimer);
   }
+  destroyTrayIconRenderer();
 });

@@ -12,7 +12,17 @@ describe("Electron 런타임 설정", () => {
 
     expect(tsconfig).toContain('"module": "CommonJS"');
     expect(packageJson.type).toBeUndefined();
-    expect(packageJson.scripts.dev).toContain("env -u ELECTRON_RUN_AS_NODE electron .");
+    expect(packageJson.scripts.dev).toContain("node scripts/dev-electron.js");
+  });
+
+  it("ELECTRON_RUN_AS_NODE 해제를 Windows cmd.exe에서도 동작하는 방식으로 처리한다", () => {
+    const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const devElectronScript = readFileSync(resolve(process.cwd(), "scripts/dev-electron.js"), "utf8");
+
+    expect(packageJson.scripts.dev).not.toContain("env -u ELECTRON_RUN_AS_NODE");
+    expect(devElectronScript).toContain("delete env.ELECTRON_RUN_AS_NODE");
   });
 
   it("창 표시 안정성을 위해 테스트용 즉시 표시 옵션과 불투명 배경을 사용한다", () => {

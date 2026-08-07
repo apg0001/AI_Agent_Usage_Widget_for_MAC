@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { getRendererIndexPath } from "../../src/main/rendererPath";
@@ -11,7 +11,7 @@ describe("패키징 renderer 경로", () => {
     const builtMainDir = resolve(__dirname, "../../dist/main/main");
     const rendererIndexPath = getRendererIndexPath(builtMainDir);
 
-    expect(rendererIndexPath.endsWith("dist/renderer/index.html")).toBe(true);
+    expect(rendererIndexPath.endsWith(join("dist", "renderer", "index.html"))).toBe(true);
   });
 
   it("소스 renderer index.html이 존재한다", () => {
