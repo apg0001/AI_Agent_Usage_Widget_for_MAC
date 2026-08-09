@@ -1,7 +1,10 @@
+import { getLoginItemLaunchAtLogin, setLoginItemLaunchAtLogin } from "./loginItem.js";
 import { PlatformAdapter } from "./types.js";
 
 export const windowsPlatform: PlatformAdapter = {
   id: "windows",
   hideFromDock: () => undefined,
-  readClaudeKeychainAccessToken: () => null
+  readClaudeKeychainCredential: () => null,
+  getLaunchAtLogin: getLoginItemLaunchAtLogin,
+  setLaunchAtLogin: setLoginItemLaunchAtLogin
 };

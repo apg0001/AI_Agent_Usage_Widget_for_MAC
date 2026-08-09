@@ -1,5 +1,36 @@
 export type ProviderId = "codex" | "claude" | "gemini";
 
+export type UsageDataQuality = "exact" | "estimated" | "unavailable";
+
+export type UsagePace = {
+  confidence: "insufficient" | "low" | "good";
+  burnRatePercentPerHour?: number;
+  projectedPercentAtReset?: number;
+  estimatedExhaustedAt?: string;
+  sampleCount: number;
+  sampleSpanMinutes: number;
+};
+
+export type UsageFreshness = {
+  observedAt?: string;
+  receivedAt: string;
+  retryAt?: string;
+  staleReason?: string;
+};
+
+export type UsageSourceInfo = {
+  label: string;
+  mode: "local" | "poll" | "cache" | "estimate";
+};
+
+export type ProviderServiceStatus = {
+  state: "operational" | "degraded" | "outage" | "unknown";
+  label: string;
+  message?: string;
+  checkedAt?: string;
+  statusPageUrl?: string;
+};
+
 export type ProviderUsage = {
   provider: ProviderId;
   label: string;
@@ -13,16 +44,48 @@ export type ProviderUsage = {
   resetsAt?: string;
   resetRemaining?: string;
   source?: "demo" | "local" | "api" | "token";
+  connectionStatus?: "connected" | "signed-out";
+  stale?: boolean;
+  dataUpdatedAt?: string;
+  resetTrackingId?: string;
+  freshness?: UsageFreshness;
+  sourceInfo?: UsageSourceInfo;
+  serviceStatus?: ProviderServiceStatus;
   windows?: UsageLimitWindow[];
 };
 
 export type UsageLimitWindow = {
-  id: "primary" | "daily" | "weekly";
+  id: string;
   label: string;
   percent: number;
   resetsAt?: string;
   resetRemaining?: string;
   message?: string;
+  available?: boolean;
+  quality?: UsageDataQuality;
+  dataUpdatedAt?: string;
+  windowDurationMinutes?: number;
+  pace?: UsagePace;
+};
+
+export type QuietHoursSettings = {
+  enabled: boolean;
+  start: string;
+  end: string;
+};
+
+export type ProviderNotificationSettings = {
+  enabled: boolean;
+  thresholds: number[];
+  resetEnabled: boolean;
+  projectedExhaustionEnabled: boolean;
+};
+
+export type NotificationSettings = {
+  enabled: boolean;
+  cooldownMinutes: number;
+  quietHours: QuietHoursSettings;
+  providers: Record<ProviderId, ProviderNotificationSettings>;
 };
 
 export type ProviderSettings = {
@@ -41,12 +104,49 @@ export type ProviderAuth = {
 export type AppSettings = {
   refreshIntervalMs: number;
   menuBarDisplayMode: "icons" | "iconsWithPercent";
+  notifications: NotificationSettings;
   providers: Record<ProviderId, ProviderSettings>;
 };
 
+/**
+ * Renderer-safe settings. Authentication material is intentionally absent from
+ * this contract; the UI only needs to know whether the main process has saved
+ * credentials so it can offer a logout action.
+ */
+export type PublicProviderSettings = {
+  visible: boolean;
+  hasSavedAuth: boolean;
+};
+
+export type PublicAppSettings = {
+  refreshIntervalMs: number;
+  menuBarDisplayMode: "icons" | "iconsWithPercent";
+  notifications: NotificationSettings;
+  providers: Record<ProviderId, PublicProviderSettings>;
+};
+
 export type UsageSnapshot = {
-  settings: AppSettings;
+  settings: PublicAppSettings;
   usage: ProviderUsage[];
+};
+
+export type UsageHistoryRange = "24h" | "7d" | "30d";
+
+export type UsageHistoryPoint = {
+  provider: ProviderId;
+  windowId: string;
+  windowLabel: string;
+  percent: number;
+  observedAt: string;
+  resetsAt?: string;
+  trackingId: string;
+  quality: UsageDataQuality;
+};
+
+export type ProviderHistory = {
+  provider: ProviderId;
+  range: UsageHistoryRange;
+  points: UsageHistoryPoint[];
 };
 
 export type TokenLoginPayload = {

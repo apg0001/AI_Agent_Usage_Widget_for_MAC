@@ -56,4 +56,62 @@ describe("Electron 런타임 설정", () => {
     expect(main).toContain('"settings:menu-bar-display-mode"');
     expect(preload).toContain("setMenuBarDisplayMode");
   });
+
+  it("사용량 갱신을 직렬화하고 스마트 알림과 이력을 연결한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+
+    expect(main).toContain("GenerationRefreshQueue");
+    expect(main).toContain("refreshAfterSettingsMutation");
+    expect(main).toContain("toPublicSettings(settings)");
+    expect(main).toContain("UsageNotificationDetector");
+    expect(main).toContain("usageNotificationDetector.detect(snapshot.usage, snapshot.settings.notifications)");
+    expect(main).toContain("Notification.isSupported()");
+    expect(main).toContain("usageHistoryStore?.record(fetchedUsage)");
+    expect(main).toContain("enrichUsageWithInsights");
+    expect(main).not.toContain("UsageResetDetector");
+  });
+
+  it("중복 실행을 막고 짧은 화면에 맞춰 팝업 높이를 줄인다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+
+    expect(main).toContain("app.requestSingleInstanceLock()");
+    expect(main).toContain('app.on("second-instance"');
+    expect(main).toContain("Math.min(640, workArea.height - 16)");
+  });
+
+  it("새 설정·이력·진단·상태 페이지 IPC를 main과 preload에 동일하게 공개한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
+    const channels = [
+      "settings:refresh-interval",
+      "settings:notifications",
+      "history:get",
+      "app:copy-diagnostics",
+      "app:open-status-page"
+    ];
+
+    for (const channel of channels) {
+      expect(main).toContain(`ipcMain.handle("${channel}"`);
+      expect(preload).toContain(`ipcRenderer.invoke("${channel}"`);
+    }
+
+    expect(preload).toContain("setRefreshIntervalMs");
+    expect(preload).toContain("setNotificationSettings");
+    expect(preload).toContain("getHistory");
+    expect(preload).toContain("copyDiagnostics");
+    expect(preload).toContain("openStatusPage");
+  });
+
+  it("이력 범위를 검증하고 공식 서비스 상태와 장애 알림을 갱신한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+
+    expect(main).toContain('["24h", "7d", "30d"].includes(range)');
+    expect(main).toContain("getAllProviderServiceStatuses");
+    expect(main).toContain("serviceStatus: sharedServiceStatus(item.provider)");
+    expect(main).toContain("notifyServiceStatusChanges(settings)");
+    expect(main).toContain("https://status.openai.com/");
+    expect(main).toContain("https://status.claude.com/");
+    expect(main).toContain("clipboard.writeText(serializeDiagnosticsReport");
+    expect(main).toContain("shell.openExternal(statusPageUrl)");
+  });
 });

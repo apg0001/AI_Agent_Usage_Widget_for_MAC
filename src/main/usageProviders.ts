@@ -1,4 +1,6 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { platformAdapter } from "./platform/index.js";
@@ -11,16 +13,100 @@ type ProviderAdapter = {
 };
 
 type UsageWindowInput = {
-  id: "primary" | "daily" | "weekly";
+  id: string;
   label: string;
   percent: number;
   resetsAt?: string;
   message?: string;
+  available?: boolean;
+  quality?: UsageLimitWindow["quality"];
+  dataUpdatedAt?: string;
+  windowDurationMinutes?: number;
 };
 
 type UsageResult = Omit<ProviderUsage, "provider" | "label" | "updatedAt">;
 
 const lastSuccessfulUsage = new Map<ProviderId, UsageResult>();
+const CODEX_MIN_REFRESH_MS = 60_000;
+const CODEX_REQUEST_TIMEOUT_MS = 15_000;
+const CODEX_LOCAL_SCAN_INTERVAL_MS = 60_000;
+const CODEX_LOCAL_FRESHNESS_MS = 2 * 60_000;
+const CODEX_SESSION_TAIL_BYTES = 512 * 1_024;
+const CLAUDE_MIN_REFRESH_MS = 60_000;
+const CLAUDE_MAX_BACKOFF_MS = 15 * 60_000;
+const CLAUDE_REQUEST_TIMEOUT_MS = 15_000;
+
+class CodexUsageApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly retryAfterMs?: number
+  ) {
+    super(`Codex 사용량 API 오류: ${status}`);
+    this.name = "CodexUsageApiError";
+  }
+}
+
+class ClaudeUsageApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly retryAfterMs?: number
+  ) {
+    super(`Claude 사용량 API 오류: ${status}`);
+    this.name = "ClaudeUsageApiError";
+  }
+}
+
+type ClaudeRequestState = {
+  accessToken: string | null;
+  resetTrackingId: string | null;
+  hasRefreshCredential: boolean;
+  nextAttemptAt: number;
+  failureCount: number;
+  lastError: Error | null;
+  inFlight: Promise<UsageResult> | null;
+};
+
+type ClaudeSession = {
+  accessToken: string;
+  resetTrackingId: string;
+  hasRefreshCredential: boolean;
+};
+
+function createClaudeRequestState(
+  accessToken: string | null,
+  resetTrackingId: string | null,
+  hasRefreshCredential = false
+): ClaudeRequestState {
+  return {
+    accessToken,
+    resetTrackingId,
+    hasRefreshCredential,
+    nextAttemptAt: 0,
+    failureCount: 0,
+    lastError: null,
+    inFlight: null
+  };
+}
+
+let claudeRequestState = createClaudeRequestState(null, null);
+let codexNextAttemptAt = 0;
+let codexLastError: Error | null = null;
+let codexInFlight: Promise<UsageResult | null> | null = null;
+let codexSessionFingerprint: string | null = null;
+let codexLocalCache: { nextScanAt: number; usage: UsageResult | null } = { nextScanAt: 0, usage: null };
+
+function configuredDirectory(environmentVariable: string, fallback: string) {
+  const configured = process.env[environmentVariable]?.trim();
+  return configured ? path.resolve(configured) : fallback;
+}
+
+function codexConfigDirectory() {
+  return configuredDirectory("CODEX_HOME", path.join(homedir(), ".codex"));
+}
+
+function claudeConfigDirectory() {
+  return configuredDirectory("CLAUDE_CONFIG_DIR", path.join(homedir(), ".claude"));
+}
 
 export function formatRemaining(resetsAt?: string) {
   if (!resetsAt) {
@@ -94,6 +180,8 @@ function createWindow(input: UsageWindowInput): UsageLimitWindow {
   return {
     ...input,
     percent: clampPercent(input.percent),
+    available: input.available ?? true,
+    quality: input.quality ?? "exact",
     resetRemaining: formatRemaining(input.resetsAt)
   };
 }
@@ -103,6 +191,8 @@ function createMissingWindow(id: "primary" | "weekly", label: string): UsageLimi
     id,
     label,
     percent: 0,
+    available: false,
+    quality: "unavailable",
     message: "제공 안 됨"
   };
 }
@@ -154,7 +244,7 @@ function seededUsage(provider: ProviderId, credential?: string) {
       unit: "requests" as const,
       percent: 0,
       status: "signed-out" as const,
-      message: provider === "claude" ? "터미널에서 claude /login을 먼저 실행하세요." : "로그인이 필요합니다."
+      message: provider === "claude" ? "Claude Code를 열고 /login을 먼저 실행하세요." : "로그인이 필요합니다."
     };
   }
 
@@ -173,12 +263,16 @@ function seededUsage(provider: ProviderId, credential?: string) {
     percent,
     status: getStatus(percent),
     source: "token" as const,
+    connectionStatus: "connected" as const,
+    dataUpdatedAt: new Date().toISOString(),
     windows: provider === "gemini" ? [
       createWindow({
         id: "daily",
         label: "오늘",
         percent: Math.max(0, percent - 12),
         resetsAt: nextLocalMidnight().toISOString(),
+        quality: "estimated",
+        windowDurationMinutes: 24 * 60,
         message: "토큰 기반 추정"
       })
     ] : [
@@ -186,13 +280,17 @@ function seededUsage(provider: ProviderId, credential?: string) {
         id: "primary",
         label: "5시간 한도",
         percent,
-        resetsAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
+        resetsAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+        quality: "estimated",
+        windowDurationMinutes: 5 * 60
       }),
       createWindow({
         id: "weekly",
         label: "주간 한도",
         percent: Math.max(0, percent - 20),
         resetsAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+        quality: "estimated",
+        windowDurationMinutes: 7 * 24 * 60,
         message: "토큰 기반 추정"
       })
     ]
@@ -219,15 +317,45 @@ function listFilesRecursive(directory: string): string[] {
   });
 }
 
+function readFileTail(file: string, maxBytes = CODEX_SESSION_TAIL_BYTES) {
+  const size = statSync(file).size;
+  const length = Math.min(size, maxBytes);
+  const offset = Math.max(0, size - length);
+  const buffer = Buffer.alloc(length);
+  const descriptor = openSync(file, "r");
+  try {
+    readSync(descriptor, buffer, 0, length, offset);
+  } finally {
+    closeSync(descriptor);
+  }
+
+  const text = buffer.toString("utf8");
+  if (offset === 0) {
+    return text;
+  }
+  const firstLineBreak = text.indexOf("\n");
+  return firstLineBreak >= 0 ? text.slice(firstLineBreak + 1) : "";
+}
+
 function readLatestCodexUsage() {
-  const sessionDir = path.join(homedir(), ".codex", "sessions");
+  const now = Date.now();
+  if (now < codexLocalCache.nextScanAt) {
+    return codexLocalCache.usage;
+  }
+  codexLocalCache = { nextScanAt: now + CODEX_LOCAL_SCAN_INTERVAL_MS, usage: null };
+  const sessionDir = path.join(codexConfigDirectory(), "sessions");
   const files = listFilesRecursive(sessionDir)
     .filter((file) => file.endsWith(".jsonl"))
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
-    .slice(0, 20);
+    .slice(0, 10);
 
   for (const file of files) {
-    const lines = readFileSync(file, "utf8").trim().split("\n").reverse();
+    let lines: string[];
+    try {
+      lines = readFileTail(file).trim().split("\n").reverse();
+    } catch {
+      continue;
+    }
     for (const line of lines) {
       try {
         const record = JSON.parse(line) as {
@@ -264,7 +392,16 @@ function readLatestCodexUsage() {
             : typeof mainWindow.resets_in_seconds === "number"
               ? new Date(Date.now() + mainWindow.resets_in_seconds * 1000).toISOString()
               : undefined;
+        if (resetsAt && Date.parse(resetsAt) <= Date.now()) {
+          continue;
+        }
         const percent = clampPercent(mainWindow.used_percent);
+        const dataUpdatedAt = record.timestamp && !Number.isNaN(Date.parse(record.timestamp))
+          ? new Date(record.timestamp).toISOString()
+          : new Date(statSync(file).mtimeMs).toISOString();
+        if (now - Date.parse(dataUpdatedAt) > CODEX_LOCAL_FRESHNESS_MS) {
+          continue;
+        }
         const windows = [
           primary && typeof primary.used_percent === "number"
             ? createWindow({
@@ -274,6 +411,8 @@ function readLatestCodexUsage() {
                   "한도"
                 ),
                 percent: primary.used_percent,
+                dataUpdatedAt,
+                windowDurationMinutes: primary.window_minutes,
                 resetsAt:
                   unixSecondsToIso(primary.resets_at) ??
                   (typeof primary.resets_in_seconds === "number"
@@ -289,6 +428,8 @@ function readLatestCodexUsage() {
                   "주간 한도"
                 ),
                 percent: secondary.used_percent,
+                dataUpdatedAt,
+                windowDurationMinutes: secondary.window_minutes,
                 resetsAt:
                   unixSecondsToIso(secondary.resets_at) ??
                   (typeof secondary.resets_in_seconds === "number"
@@ -297,7 +438,7 @@ function readLatestCodexUsage() {
               })
             : null
         ].filter(isUsageWindow);
-        return withReset({
+        const usage = withReset({
           used: percent,
           limit: 100,
           unit: "credits" as const,
@@ -305,20 +446,24 @@ function readLatestCodexUsage() {
           status: getStatus(percent),
           resetsAt,
           source: "local" as const,
+          connectionStatus: "connected" as const,
+          dataUpdatedAt,
           windows: ensureLimitWindows(windows),
           message: rateLimit?.plan_type
         });
+        codexLocalCache.usage = usage;
+        return usage;
       } catch {
         continue;
       }
     }
   }
 
-  return null;
+  return codexLocalCache.usage;
 }
 
 function readCodexAccessToken() {
-  const authPath = path.join(homedir(), ".codex", "auth.json");
+  const authPath = path.join(codexConfigDirectory(), "auth.json");
   if (!existsSync(authPath)) {
     return null;
   }
@@ -331,24 +476,22 @@ function readCodexAccessToken() {
   }
 }
 
-async function fetchCodexUsage() {
-  const accessToken = readCodexAccessToken();
+async function fetchCodexUsage(savedAccessToken?: string) {
+  const accessToken = savedAccessToken ?? readCodexAccessToken();
   if (!accessToken) {
     return null;
   }
 
   const response = await fetch("https://chatgpt.com/backend-api/wham/usage", {
+    signal: globalThis.AbortSignal.timeout(CODEX_REQUEST_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json"
     }
   });
 
-  if (response.status === 401) {
-    throw new Error("Codex 로그인 만료: codex login을 다시 실행하세요.");
-  }
   if (!response.ok) {
-    throw new Error(`Codex 사용량 API 오류: ${response.status}`);
+    throw new CodexUsageApiError(response.status, parseRetryAfterMs(response.headers.get("retry-after")));
   }
 
   const data = (await response.json()) as {
@@ -367,12 +510,17 @@ async function fetchCodexUsage() {
 
   const percent = clampPercent(mainWindow.used_percent);
   const resetsAt = unixSecondsToIso(mainWindow.reset_at);
+  const dataUpdatedAt = new Date().toISOString();
   const windows = ensureLimitWindows([
     primary && typeof primary.used_percent === "number"
       ? createWindow({
           id: "primary",
           label: windowLabel(primary.limit_window_seconds, "한도"),
           percent: primary.used_percent,
+          dataUpdatedAt,
+          windowDurationMinutes: typeof primary.limit_window_seconds === "number"
+            ? primary.limit_window_seconds / 60
+            : undefined,
           resetsAt: unixSecondsToIso(primary.reset_at)
         })
       : null,
@@ -381,6 +529,10 @@ async function fetchCodexUsage() {
           id: "weekly",
           label: windowLabel(weekly.limit_window_seconds, "주간 한도"),
           percent: weekly.used_percent,
+          dataUpdatedAt,
+          windowDurationMinutes: typeof weekly.limit_window_seconds === "number"
+            ? weekly.limit_window_seconds / 60
+            : undefined,
           resetsAt: unixSecondsToIso(weekly.reset_at)
         })
       : null
@@ -394,38 +546,208 @@ async function fetchCodexUsage() {
     status: getStatus(percent),
     resetsAt,
     source: "api" as const,
+    connectionStatus: "connected" as const,
+    dataUpdatedAt,
     windows,
     message: data.plan_type
   });
 }
 
-function readClaudeAccessToken() {
-  const credentialsPath = path.join(homedir(), ".claude", ".credentials.json");
+function codexFailureUsage(error: Error, hasSession: boolean): UsageResult | null {
+  if (!hasSession) {
+    return null;
+  }
+
+  const authExpired = error instanceof CodexUsageApiError && (error.status === 401 || error.status === 403);
+  if (authExpired) {
+    lastSuccessfulUsage.delete("codex");
+    return {
+      used: 0,
+      limit: 0,
+      unit: "credits",
+      percent: 0,
+      status: "signed-out",
+      source: "api",
+      connectionStatus: "signed-out",
+      message: "Codex 로그인 세션이 만료되었습니다. codex login을 다시 실행하세요."
+    };
+  }
+
+  const retryAt = new Date(codexNextAttemptAt).toISOString();
+  const cached = readLastSuccessfulUsage("codex");
+  const message = `Codex 세션은 연결되어 있지만 사용량을 갱신하지 못했습니다. ${formatRemaining(retryAt) ?? "잠시"} 후 다시 시도합니다.`;
+  return cached
+    ? {
+        ...cached,
+        stale: true,
+        connectionStatus: "connected",
+        freshness: {
+          observedAt: cached.dataUpdatedAt,
+          receivedAt: new Date().toISOString(),
+          retryAt,
+          staleReason: error.message
+        },
+        message
+      }
+    : {
+        used: 0,
+        limit: 0,
+        unit: "credits",
+        percent: 0,
+        status: "error",
+        source: "api",
+        connectionStatus: "connected",
+        stale: true,
+        freshness: {
+          receivedAt: new Date().toISOString(),
+          retryAt,
+          staleReason: error.message
+        },
+        message
+      };
+}
+
+async function fetchThrottledCodexUsage(savedAccessToken?: string): Promise<UsageResult | null> {
+  const accessToken = savedAccessToken ?? readCodexAccessToken() ?? undefined;
+  const fingerprint = accessToken ? createResetTrackingId(accessToken) : null;
+  if (fingerprint !== codexSessionFingerprint) {
+    const identityChanged = codexSessionFingerprint !== null;
+    codexSessionFingerprint = fingerprint;
+    codexNextAttemptAt = 0;
+    codexLastError = null;
+    codexLocalCache = { nextScanAt: 0, usage: null };
+    if (identityChanged) {
+      lastSuccessfulUsage.delete("codex");
+    }
+  }
+
+  const local = savedAccessToken ? null : readLatestCodexUsage();
+  if (local) {
+    codexLastError = null;
+    return rememberUsage("codex", {
+      ...local,
+      resetTrackingId: fingerprint ?? undefined
+    });
+  }
+
+  const hasSession = Boolean(accessToken);
+  if (codexInFlight) {
+    return codexInFlight;
+  }
+  if (Date.now() < codexNextAttemptAt) {
+    if (codexLastError) {
+      return codexFailureUsage(codexLastError, hasSession);
+    }
+    return readLastSuccessfulUsage("codex");
+  }
+
+  codexNextAttemptAt = Date.now() + CODEX_MIN_REFRESH_MS;
+  codexInFlight = (async () => {
+    try {
+      const usage = await fetchCodexUsage(accessToken);
+      codexLastError = null;
+      return usage
+        ? rememberUsage("codex", { ...usage, resetTrackingId: fingerprint ?? undefined })
+        : null;
+    } catch (error) {
+      codexLastError = error instanceof Error ? error : new Error("Codex 사용량을 불러오지 못했습니다.");
+      const retryAfterMs = codexLastError instanceof CodexUsageApiError ? codexLastError.retryAfterMs : undefined;
+      codexNextAttemptAt = Date.now() + Math.max(CODEX_MIN_REFRESH_MS, retryAfterMs ?? 0);
+      return codexFailureUsage(codexLastError, hasSession);
+    } finally {
+      codexInFlight = null;
+    }
+  })();
+  return codexInFlight;
+}
+
+function createResetTrackingId(value: string) {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
+function hasUsableRefreshCredential(refreshToken?: string, expiresAt?: number | string) {
+  if (!refreshToken) {
+    return false;
+  }
+  if (expiresAt === undefined) {
+    return true;
+  }
+
+  const numeric = typeof expiresAt === "number" ? expiresAt : Number(expiresAt);
+  const expiryMs = Number.isFinite(numeric)
+    ? numeric < 10_000_000_000 ? numeric * 1_000 : numeric
+    : Date.parse(String(expiresAt));
+  return Number.isFinite(expiryMs) && expiryMs > Date.now();
+}
+
+function readClaudeSession(): ClaudeSession | null {
+  const credentialsPath = path.join(claudeConfigDirectory(), ".credentials.json");
   if (existsSync(credentialsPath)) {
     try {
       const credentials = JSON.parse(readFileSync(credentialsPath, "utf8")) as {
         accessToken?: string;
-        claudeAiOauth?: { accessToken?: string };
+        refreshToken?: string;
+        refreshTokenExpiresAt?: number | string;
+        organizationUuid?: string;
+        claudeAiOauth?: {
+          accessToken?: string;
+          refreshToken?: string;
+          refreshTokenExpiresAt?: number | string;
+        };
       };
       const token = credentials.claudeAiOauth?.accessToken ?? credentials.accessToken;
+      const refreshToken = credentials.claudeAiOauth?.refreshToken ?? credentials.refreshToken;
+      const refreshTokenExpiresAt = credentials.claudeAiOauth?.refreshTokenExpiresAt ?? credentials.refreshTokenExpiresAt;
       if (token) {
-        return token;
+        return {
+          accessToken: token,
+          resetTrackingId: createResetTrackingId(credentials.organizationUuid ?? refreshToken ?? token),
+          hasRefreshCredential: hasUsableRefreshCredential(refreshToken, refreshTokenExpiresAt)
+        };
       }
     } catch {
       // Continue to Keychain fallback.
     }
   }
 
-  return platformAdapter.readClaudeKeychainAccessToken();
+  const keychainCredential = platformAdapter.readClaudeKeychainCredential();
+  return keychainCredential
+    ? {
+        accessToken: keychainCredential.accessToken,
+        resetTrackingId: createResetTrackingId(
+          keychainCredential.organizationUuid ??
+          keychainCredential.refreshToken ??
+          keychainCredential.accessToken
+        ),
+        hasRefreshCredential: hasUsableRefreshCredential(
+          keychainCredential.refreshToken,
+          keychainCredential.refreshTokenExpiresAt
+        )
+      }
+    : null;
 }
 
-async function fetchClaudeUsage(credential?: string) {
-  const accessToken = credential ?? readClaudeAccessToken();
-  if (!accessToken) {
-    return null;
+export function parseRetryAfterMs(value: string | null, now = Date.now()) {
+  if (!value) {
+    return undefined;
   }
 
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1_000);
+  }
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) {
+    return undefined;
+  }
+
+  return Math.max(0, retryAt - now);
+}
+
+async function fetchClaudeUsage(accessToken: string): Promise<UsageResult> {
   const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
+    signal: globalThis.AbortSignal.timeout(CLAUDE_REQUEST_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
@@ -435,7 +757,10 @@ async function fetchClaudeUsage(credential?: string) {
   });
 
   if (!response.ok) {
-    throw new Error(`Claude 사용량 API 오류: ${response.status}`);
+    throw new ClaudeUsageApiError(
+      response.status,
+      parseRetryAfterMs(response.headers.get("retry-after"))
+    );
   }
 
   const data = (await response.json()) as {
@@ -444,7 +769,7 @@ async function fetchClaudeUsage(credential?: string) {
   };
   const window = data.five_hour ?? data.seven_day;
   if (!window || typeof window.utilization !== "number") {
-    return null;
+    throw new Error("Claude 사용량 API 응답에 사용량 정보가 없습니다.");
   }
 
   const percent = Math.round(window.utilization);
@@ -456,13 +781,17 @@ async function fetchClaudeUsage(credential?: string) {
     status: getStatus(percent),
     resetsAt: window.resets_at,
     source: "api" as const,
+    connectionStatus: "connected" as const,
+    dataUpdatedAt: new Date().toISOString(),
     windows: ensureLimitWindows([
       data.five_hour && typeof data.five_hour.utilization === "number"
         ? createWindow({
             id: "primary",
             label: "5시간 한도",
             percent: data.five_hour.utilization,
-            resetsAt: data.five_hour.resets_at
+            resetsAt: data.five_hour.resets_at,
+            dataUpdatedAt: new Date().toISOString(),
+            windowDurationMinutes: 5 * 60
           })
         : null,
       data.seven_day && typeof data.seven_day.utilization === "number"
@@ -470,12 +799,152 @@ async function fetchClaudeUsage(credential?: string) {
             id: "weekly",
             label: "주간 한도",
             percent: data.seven_day.utilization,
-            resetsAt: data.seven_day.resets_at
+            resetsAt: data.seven_day.resets_at,
+            dataUpdatedAt: new Date().toISOString(),
+            windowDurationMinutes: 7 * 24 * 60
           })
         : null
     ].filter(isUsageWindow)),
     message: undefined
   });
+}
+
+function resetClaudeRequestState(
+  accessToken: string | null,
+  resetTrackingId: string | null,
+  hasRefreshCredential = false
+) {
+  if (
+    claudeRequestState.accessToken === accessToken &&
+    claudeRequestState.resetTrackingId === resetTrackingId &&
+    claudeRequestState.hasRefreshCredential === hasRefreshCredential
+  ) {
+    return claudeRequestState;
+  }
+
+  const identityChanged = claudeRequestState.resetTrackingId !== resetTrackingId;
+  claudeRequestState = createClaudeRequestState(accessToken, resetTrackingId, hasRefreshCredential);
+  if (identityChanged) {
+    lastSuccessfulUsage.delete("claude");
+  }
+  return claudeRequestState;
+}
+
+function claudeFailureDelay(error: Error, state: ClaudeRequestState) {
+  const exponentialBackoff = Math.min(
+    CLAUDE_MIN_REFRESH_MS * 2 ** Math.max(0, state.failureCount - 1),
+    CLAUDE_MAX_BACKOFF_MS
+  );
+  const retryAfterMs = error instanceof ClaudeUsageApiError ? error.retryAfterMs : undefined;
+  return Math.max(CLAUDE_MIN_REFRESH_MS, exponentialBackoff, retryAfterMs ?? 0);
+}
+
+function claudeFailureMessage(error: Error, state: ClaudeRequestState) {
+  if (error instanceof ClaudeUsageApiError && error.status === 401 && state.hasRefreshCredential) {
+    return "저장된 Claude Code 로그인은 확인했지만 액세스 토큰 갱신을 기다리는 중입니다. Claude Code가 갱신하면 자동으로 다시 연결됩니다.";
+  }
+  if (error instanceof ClaudeUsageApiError && (error.status === 401 || error.status === 403)) {
+    return "Claude Code 로그인 세션이 만료되었습니다. Claude Code에서 다시 로그인하세요.";
+  }
+
+  const retrySeconds = Math.max(1, Math.ceil((state.nextAttemptAt - Date.now()) / 1_000));
+  if (error instanceof ClaudeUsageApiError && error.status === 429) {
+    return `Claude Code 세션은 연결되어 있지만 사용량 조회가 제한되었습니다. ${retrySeconds}초 후 다시 시도합니다.`;
+  }
+  return `Claude Code 세션은 연결되어 있지만 사용량을 불러오지 못했습니다. ${retrySeconds}초 후 다시 시도합니다.`;
+}
+
+function claudeFailureUsage(error: Error, state: ClaudeRequestState): UsageResult {
+  const authExpired = error instanceof ClaudeUsageApiError &&
+    (error.status === 403 || (error.status === 401 && !state.hasRefreshCredential));
+  return {
+    used: 0,
+    limit: 0,
+    unit: "requests",
+    percent: 0,
+    status: authExpired ? "signed-out" : "error",
+    source: "api",
+    connectionStatus: authExpired ? "signed-out" : "connected",
+    stale: !authExpired,
+    freshness: {
+      receivedAt: new Date().toISOString(),
+      retryAt: authExpired ? undefined : new Date(state.nextAttemptAt).toISOString(),
+      staleReason: authExpired ? undefined : error.message
+    },
+    resetTrackingId: state.resetTrackingId ?? undefined,
+    message: claudeFailureMessage(error, state)
+  };
+}
+
+function claudeCachedOrFailure(error: Error, state: ClaudeRequestState) {
+  const authExpired = error instanceof ClaudeUsageApiError &&
+    (error.status === 403 || (error.status === 401 && !state.hasRefreshCredential));
+  if (authExpired) {
+    lastSuccessfulUsage.delete("claude");
+    return claudeFailureUsage(error, state);
+  }
+
+  const cached = readLastSuccessfulUsage("claude");
+  return cached
+    ? {
+        ...cached,
+        connectionStatus: "connected" as const,
+        stale: true,
+        freshness: {
+          observedAt: cached.dataUpdatedAt,
+          receivedAt: new Date().toISOString(),
+          retryAt: new Date(state.nextAttemptAt).toISOString(),
+          staleReason: error.message
+        },
+        message: claudeFailureMessage(error, state)
+      }
+    : claudeFailureUsage(error, state);
+}
+
+async function fetchThrottledClaudeUsage(session: ClaudeSession): Promise<UsageResult> {
+  const state = resetClaudeRequestState(
+    session.accessToken,
+    session.resetTrackingId,
+    session.hasRefreshCredential
+  );
+
+  if (state.inFlight) {
+    return state.inFlight;
+  }
+
+  if (Date.now() < state.nextAttemptAt) {
+    const cached = readLastSuccessfulUsage("claude");
+    if (!state.lastError) {
+      return cached ?? claudeFailureUsage(new Error("Claude 사용량을 불러오는 중입니다."), state);
+    }
+    return claudeCachedOrFailure(state.lastError, state);
+  }
+
+  const requestStartedAt = Date.now();
+  state.nextAttemptAt = requestStartedAt + CLAUDE_MIN_REFRESH_MS;
+  const request = (async () => {
+    try {
+      const usage = {
+        ...(await fetchClaudeUsage(session.accessToken)),
+        resetTrackingId: session.resetTrackingId
+      };
+      state.failureCount = 0;
+      state.lastError = null;
+      return claudeRequestState === state ? rememberUsage("claude", usage) : usage;
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error("Claude 사용량을 불러오지 못했습니다.");
+      state.failureCount += 1;
+      state.lastError = normalizedError;
+      state.nextAttemptAt = Date.now() + claudeFailureDelay(normalizedError, state);
+      return claudeRequestState === state
+        ? claudeCachedOrFailure(normalizedError, state)
+        : claudeFailureUsage(normalizedError, state);
+    } finally {
+      state.inFlight = null;
+    }
+  })();
+  state.inFlight = request;
+  return request;
 }
 
 function readGeminiLocalSession() {
@@ -491,12 +960,15 @@ function readGeminiLocalSession() {
     percent: 0,
     status: "ok" as const,
     source: "local" as const,
+    connectionStatus: "connected" as const,
     windows: [
       createWindow({
         id: "daily",
         label: "오늘",
         percent: 0,
         resetsAt: nextLocalMidnight().toISOString(),
+        available: false,
+        quality: "unavailable",
         message: "Gemini OAuth 세션 감지"
       })
     ],
@@ -512,12 +984,15 @@ function geminiOAuthUsage() {
     percent: 0,
     status: "ok" as const,
     source: "api" as const,
+    connectionStatus: "connected" as const,
     windows: [
       createWindow({
         id: "daily",
         label: "오늘",
         percent: 0,
         resetsAt: nextLocalMidnight().toISOString(),
+        available: false,
+        quality: "unavailable",
         message: "Google OAuth 로그인"
       })
     ],
@@ -531,17 +1006,27 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
     const credential = auth?.accessToken;
     if (provider.id === "codex") {
       const codexUsage = isLocalProviderDetectionEnabled()
-        ? (await fetchCodexUsage().catch(() => null)) ?? readLatestCodexUsage()
+        ? await fetchThrottledCodexUsage(credential)
         : null;
-      return codexUsage ? rememberUsage(provider.id, codexUsage) : readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, credential);
+      return codexUsage ?? readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, credential);
     }
     if (provider.id === "claude") {
-      const claudeUsage = credential
-        ? await fetchClaudeUsage(credential).catch(() => null)
-        : isLocalProviderDetectionEnabled()
-          ? await fetchClaudeUsage().catch(() => null)
-          : null;
-      return claudeUsage ? rememberUsage(provider.id, claudeUsage) : readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, undefined);
+      const savedOAuthSession = auth?.type === "oauth" && credential
+        ? {
+            accessToken: credential,
+            resetTrackingId: createResetTrackingId(auth.accountLabel ?? auth.refreshToken ?? credential),
+            hasRefreshCredential: Boolean(auth.refreshToken)
+          }
+        : null;
+      const session = savedOAuthSession ?? (isLocalProviderDetectionEnabled() ? readClaudeSession() : null);
+      if (!session) {
+        resetClaudeRequestState(null, null);
+        return {
+          ...seededUsage(provider.id, undefined),
+          connectionStatus: "signed-out" as const
+        };
+      }
+      return fetchThrottledClaudeUsage(session);
     }
     if (provider.id === "gemini") {
       return (
@@ -553,6 +1038,25 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
   }
 }));
 
+function sourceInfo(result: UsageResult, providerLabel: string) {
+  if (!result.source) {
+    return undefined;
+  }
+  if (result.stale) {
+    return { label: `${providerLabel} 마지막 정상 데이터`, mode: "cache" as const };
+  }
+  if (result.source === "local") {
+    return { label: `${providerLabel} 로컬 세션`, mode: "local" as const };
+  }
+  if (result.source === "api") {
+    return { label: `${providerLabel} 사용량 API`, mode: "poll" as const };
+  }
+  if (result.source === "token") {
+    return { label: "직접 입력 토큰 기반 추정", mode: "estimate" as const };
+  }
+  return { label: "데모 데이터", mode: "estimate" as const };
+}
+
 export async function fetchUsageSnapshot(settings: AppSettings): Promise<ProviderUsage[]> {
   const visibleAdapters = adapters.filter((adapter) => settings.providers[adapter.id].visible);
 
@@ -561,11 +1065,25 @@ export async function fetchUsageSnapshot(settings: AppSettings): Promise<Provide
       try {
         const providerSettings = settings.providers[adapter.id];
         const result = await adapter.fetchUsage(providerSettings.auth);
+        const receivedAt = new Date().toISOString();
+        const observedAt = result.dataUpdatedAt;
         return {
           provider: adapter.id,
           label: adapter.label,
-          updatedAt: new Date().toISOString(),
-          ...result
+          updatedAt: receivedAt,
+          ...result,
+          sourceInfo: result.sourceInfo ?? sourceInfo(result, adapter.label),
+          freshness: {
+            observedAt,
+            receivedAt,
+            ...(result.freshness ?? {})
+          },
+          windows: result.windows?.map((window) => ({
+            ...window,
+            available: window.available ?? true,
+            quality: window.quality ?? (result.source === "token" ? "estimated" : "exact"),
+            dataUpdatedAt: window.dataUpdatedAt ?? observedAt
+          }))
         };
       } catch (error) {
         return {

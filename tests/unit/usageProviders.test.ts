@@ -102,6 +102,6 @@ describe("fetchUsageSnapshot", () => {
 
     const claude = usage.find((item) => item.provider === "claude");
     expect(claude?.status).toBe("signed-out");
-    expect(claude?.message).toContain("claude /login");
+    expect(claude?.message).toContain("Claude Code를 열고 /login");
   });
 });

@@ -1,6 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { Buffer } from "node:buffer";
-import { PlatformAdapter } from "./types.js";
+import { getLoginItemLaunchAtLogin, setLoginItemLaunchAtLogin } from "./loginItem.js";
+import { ClaudeCredential, PlatformAdapter } from "./types.js";
+
+const KEYCHAIN_READ_INTERVAL_MS = 60_000;
+let keychainCredentialCache: { expiresAt: number; value: ClaudeCredential | null } = {
+  expiresAt: 0,
+  value: null
+};
 
 function isClaudeCredentialService(service: string) {
   return service === "Claude Code-credentials" || service.startsWith("Claude Code-credentials-");
@@ -8,7 +15,13 @@ function isClaudeCredentialService(service: string) {
 
 function decodeClaudeCredential(raw: string) {
   try {
-    return JSON.parse(raw) as { accessToken?: string; claudeAiOauth?: { accessToken?: string } };
+    return JSON.parse(raw) as {
+      accessToken?: string;
+      refreshToken?: string;
+      refreshTokenExpiresAt?: number | string;
+      organizationUuid?: string;
+      claudeAiOauth?: { accessToken?: string; refreshToken?: string; refreshTokenExpiresAt?: number | string };
+    };
   } catch {
     const trimmed = raw.trim();
     if (!trimmed || trimmed.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(trimmed)) {
@@ -16,7 +29,13 @@ function decodeClaudeCredential(raw: string) {
     }
     try {
       const decoded = Buffer.from(trimmed, "hex").toString("utf8");
-      return JSON.parse(decoded) as { accessToken?: string; claudeAiOauth?: { accessToken?: string } };
+      return JSON.parse(decoded) as {
+        accessToken?: string;
+        refreshToken?: string;
+        refreshTokenExpiresAt?: number | string;
+        organizationUuid?: string;
+        claudeAiOauth?: { accessToken?: string; refreshToken?: string; refreshTokenExpiresAt?: number | string };
+      };
     } catch {
       return null;
     }
@@ -52,7 +71,11 @@ function listClaudeKeychainItems() {
   }
 }
 
-function readClaudeKeychainAccessToken() {
+function readClaudeKeychainCredential(): ClaudeCredential | null {
+  if (Date.now() < keychainCredentialCache.expiresAt) {
+    return keychainCredentialCache.value;
+  }
+
   for (const item of listClaudeKeychainItems()) {
     try {
       const raw = execFileSync(
@@ -67,18 +90,32 @@ function readClaudeKeychainAccessToken() {
       const credentials = decodeClaudeCredential(raw);
       const token = credentials?.claudeAiOauth?.accessToken ?? credentials?.accessToken;
       if (token) {
-        return token;
+        const value = {
+          accessToken: token,
+          refreshToken: credentials?.claudeAiOauth?.refreshToken ?? credentials?.refreshToken,
+          refreshTokenExpiresAt:
+            credentials?.claudeAiOauth?.refreshTokenExpiresAt ?? credentials?.refreshTokenExpiresAt,
+          organizationUuid: credentials?.organizationUuid
+        };
+        keychainCredentialCache = { expiresAt: Date.now() + KEYCHAIN_READ_INTERVAL_MS, value };
+        return value;
       }
     } catch {
       continue;
     }
   }
 
+  keychainCredentialCache = {
+    expiresAt: Date.now() + KEYCHAIN_READ_INTERVAL_MS,
+    value: null
+  };
   return null;
 }
 
 export const macPlatform: PlatformAdapter = {
   id: "mac",
   hideFromDock: (app) => app.dock?.hide(),
-  readClaudeKeychainAccessToken
+  readClaudeKeychainCredential,
+  getLaunchAtLogin: getLoginItemLaunchAtLogin,
+  setLaunchAtLogin: setLoginItemLaunchAtLogin
 };
