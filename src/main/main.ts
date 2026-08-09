@@ -143,19 +143,52 @@ function createWindow() {
     if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
       return;
     }
-    // A blur can fire from a transient, unrelated focus shift (e.g. a native
-    // notification toast briefly taking focus) rather than the user actually
-    // clicking away. Debounce and re-check so those don't hide the panel.
+    if (activeNotifications > 0) {
+      // The blur is most likely caused by interacting with one of our own
+      // notification toasts (clicking it, dismissing it), not the user
+      // clicking away from the panel. Don't hide for it; releaseNotification
+      // re-focuses the panel once the notification is gone.
+      return;
+    }
+    // A blur can otherwise still fire from a transient, unrelated focus shift
+    // rather than the user actually clicking away. Debounce and re-check so
+    // those don't hide the panel either.
     if (blurHideTimer) {
       clearTimeout(blurHideTimer);
     }
     blurHideTimer = setTimeout(() => {
       blurHideTimer = null;
-      if (window && !window.isDestroyed() && !window.isFocused()) {
+      if (window && !window.isDestroyed() && !window.isFocused() && activeNotifications === 0) {
         window.hide();
       }
     }, 150);
   });
+}
+
+let activeNotifications = 0;
+
+function releaseNotification() {
+  activeNotifications = Math.max(0, activeNotifications - 1);
+  if (activeNotifications === 0 && window && !window.isDestroyed() && window.isVisible()) {
+    window.focus();
+  }
+}
+
+function showNotification(options: Electron.NotificationConstructorOptions) {
+  const notification = new Notification(options);
+  activeNotifications += 1;
+  let settled = false;
+  const release = () => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    releaseNotification();
+  };
+  notification.once("close", release);
+  notification.once("click", release);
+  notification.once("failed", release);
+  notification.show();
 }
 
 function positionWindow() {
@@ -235,7 +268,7 @@ function notifyUsageEvents(snapshot: UsageSnapshot) {
 
   for (const event of usageNotificationDetector.detect(snapshot.usage, snapshot.settings.notifications)) {
     const { title, body } = usageEventContent(event, snapshot.settings.language);
-    new Notification({ title, body }).show();
+    showNotification({ title, body });
   }
 }
 
@@ -291,15 +324,15 @@ function notifyServiceStatusChanges(settings: AppSettings) {
       continue;
     }
     if (current === "degraded" || current === "outage" || current === "maintenance") {
-      new Notification({
+      showNotification({
         title: t.main.serviceChangeTitle(provider.label),
         body: current === "outage" ? t.main.serviceOutageBody : t.main.serviceDegradedBody
-      }).show();
+      });
     } else if (current === "operational" && previous !== "operational") {
-      new Notification({
+      showNotification({
         title: t.main.serviceRecoveredTitle(provider.label),
         body: t.main.serviceRecoveredBody
-      }).show();
+      });
     }
   }
 }
