@@ -772,6 +772,39 @@ footer {
   overflow: visible;
 }
 
+.history-time-axis {
+  min-height: 13px;
+  padding: 0 8px;
+  color: #64748b;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.history-time-axis time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-time-axis time[data-position="middle"] {
+  text-align: center;
+}
+
+.history-time-axis time[data-position="end"] {
+  text-align: right;
+}
+
+.history-summary {
+  margin-top: 1px;
+}
+
 .chart-guide {
   stroke: #e2e8f0;
   stroke-dasharray: 3 4;

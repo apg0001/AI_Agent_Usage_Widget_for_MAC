@@ -26,6 +26,7 @@ import {
   UsageLimitWindow,
   UsageSnapshot
 } from "../../shared/types";
+import { buildHistoryAxisTicks, normalizeHistoryPoints } from "./historyAxis";
 import "./styles.css";
 
 type View =
@@ -514,8 +515,10 @@ function HistoryChart({
   range: UsageHistoryRange;
 }) {
   const primaryWindowId = providerWindows(usage)[0]?.id;
-  const allPoints = history?.points ?? [];
-  const points = allPoints.filter((point) => point.windowId === primaryWindowId);
+  const points = useMemo(
+    () => normalizeHistoryPoints((history?.points ?? []).filter((point) => point.windowId === primaryWindowId)),
+    [history?.points, primaryWindowId]
+  );
 
   const geometry = useMemo(() => {
     if (points.length < 2) {
@@ -537,9 +540,10 @@ function HistoryChart({
       line: coordinates.join(" "),
       area: `8,66 ${coordinates.join(" ")} 312,66`,
       min: Math.min(...points.map((point) => point.percent)),
-      max: Math.max(...points.map((point) => point.percent))
+      max: Math.max(...points.map((point) => point.percent)),
+      ticks: buildHistoryAxisTicks(points, range)
     };
-  }, [points]);
+  }, [points, range]);
 
   if (!geometry) {
     return (
@@ -553,12 +557,18 @@ function HistoryChart({
     );
   }
 
+  const firstTick = geometry.ticks[0];
+  const lastTick = geometry.ticks.at(-1);
+  const observedRangeLabel = firstTick && lastTick
+    ? `, ${firstTick.fullLabel}부터 ${lastTick.fullLabel}까지`
+    : "";
+
   return (
     <div className="history-chart">
       <svg
         viewBox="0 0 320 70"
         role="img"
-        aria-label={`${usage.label} 최근 ${historyRangeLabels[range]} 사용률, 최저 ${Math.round(geometry.min)}%, 최고 ${Math.round(geometry.max)}%`}
+        aria-label={`${usage.label} 최근 ${historyRangeLabels[range]} 사용률${observedRangeLabel}, 최저 ${Math.round(geometry.min)}%, 최고 ${Math.round(geometry.max)}%`}
         preserveAspectRatio="none"
       >
         <line x1="8" x2="312" y1="8" y2="8" className="chart-guide" />
@@ -567,7 +577,19 @@ function HistoryChart({
         <polygon points={geometry.area} className="chart-area" />
         <polyline points={geometry.line} className="chart-line" />
       </svg>
-      <p>최저 {Math.round(geometry.min)}% · 최고 {Math.round(geometry.max)}% · {points.length}개 기록</p>
+      <div className="history-time-axis" aria-hidden="true">
+        {geometry.ticks.map((tick) => (
+          <time
+            key={`${tick.position}-${tick.timestamp}`}
+            dateTime={tick.timestamp}
+            data-position={tick.position}
+            title={tick.fullLabel}
+          >
+            {tick.label}
+          </time>
+        ))}
+      </div>
+      <p className="history-summary">최저 {Math.round(geometry.min)}% · 최고 {Math.round(geometry.max)}% · {points.length}개 기록</p>
     </div>
   );
 }
