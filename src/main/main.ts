@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain, Menu, Notification, screen, shell, Tray } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from "electron";
 import path from "node:path";
 import { serializeDiagnosticsReport } from "./diagnostics.js";
 import { GenerationRefreshQueue } from "./generationRefreshQueue.js";
@@ -73,6 +73,12 @@ function showWindow() {
 }
 
 async function createStaticTrayIcon() {
+  if (platformAdapter.id === "mac") {
+    // macOS는 Tray.setTitle로 에이전트별 이름/사용률 텍스트만 보여주면 충분하고,
+    // 아이콘 비트맵(숨겨진 창을 캡처하는 방식)은 투명 배경이 온전히 보존되지 않아
+    // 메뉴바에 불필요한 흰 여백 블록으로 보이는 문제가 있어 아이콘 자체를 비워둔다.
+    return nativeImage.createEmpty();
+  }
   const image = await renderSvgToNativeImage(buildStaticTrayIconSvg(), 32);
   image.setTemplateImage(true);
   return image;
