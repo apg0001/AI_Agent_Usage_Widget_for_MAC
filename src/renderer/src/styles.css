@@ -987,10 +987,16 @@ footer {
   overflow: hidden;
 }
 
-.disclosure-card summary {
+.disclosure-summary {
+  width: 100%;
   min-height: 47px;
+  margin: 0;
+  border: 0;
   padding: 0 13px;
-  list-style: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -998,11 +1004,7 @@ footer {
   cursor: pointer;
 }
 
-.disclosure-card summary::-webkit-details-marker {
-  display: none;
-}
-
-.disclosure-card summary::after {
+.disclosure-summary::after {
   width: 7px;
   height: 7px;
   flex: 0 0 7px;
@@ -1013,11 +1015,11 @@ footer {
   transition: transform 150ms ease;
 }
 
-.disclosure-card[open] summary::after {
+.disclosure-card.open .disclosure-summary::after {
   transform: rotate(225deg) translate(-2px, -1px);
 }
 
-.disclosure-card summary > span {
+.disclosure-summary > span {
   min-width: 0;
   flex: 1;
   display: flex;
@@ -1028,7 +1030,7 @@ footer {
   font-weight: 800;
 }
 
-.disclosure-card summary > small {
+.disclosure-summary > small {
   max-width: 145px;
   overflow: hidden;
   color: var(--ink-500);

@@ -609,6 +609,33 @@ function PaceSummary({ usage }: { usage: ProviderUsage }) {
   );
 }
 
+function Disclosure({
+  summary,
+  status,
+  children
+}: {
+  summary: React.ReactNode;
+  status: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className={`disclosure-card${open ? " open" : ""}`}>
+      <button
+        type="button"
+        className="disclosure-summary"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>{summary}</span>
+        <small>{status}</small>
+      </button>
+      {open ? children : null}
+    </div>
+  );
+}
+
 function ProviderAlertSettings({
   usage,
   settings,
@@ -632,14 +659,15 @@ function ProviderAlertSettings({
   }
 
   return (
-    <details className="disclosure-card">
-      <summary>
-        <span>
+    <Disclosure
+      summary={
+        <>
           <Bell size={15} aria-hidden="true" />
           {t.alerts.heading}
-        </span>
-        <small>{settings.enabled && globalEnabled ? t.alerts.on : t.alerts.off}</small>
-      </summary>
+        </>
+      }
+      status={settings.enabled && globalEnabled ? t.alerts.on : t.alerts.off}
+    >
       <div className="disclosure-content">
         {!globalEnabled ? <p className="inline-note">{t.alerts.globalDisabledNote}</p> : null}
         <div className="setting-row compact-setting-row">
@@ -688,7 +716,7 @@ function ProviderAlertSettings({
           {t.alerts.projectedNotify}
         </label>
       </div>
-    </details>
+    </Disclosure>
   );
 }
 
@@ -701,11 +729,7 @@ function DataStatus({ usage, onOpenStatusPage }: { usage: ProviderUsage; onOpenS
   const service = usage.serviceStatus;
 
   return (
-    <details className="disclosure-card">
-      <summary>
-        <span>{t.dataStatus.heading}</span>
-        <small>{usage.stale ? t.dataStatus.cached : sourceLabel}</small>
-      </summary>
+    <Disclosure summary={t.dataStatus.heading} status={usage.stale ? t.dataStatus.cached : sourceLabel}>
       <div className="disclosure-content data-grid">
         <div><span>{t.dataStatus.source}</span><strong>{sourceLabel}{sourceMode ? ` · ${sourceMode}` : ""}</strong></div>
         <div><span>{t.dataStatus.observed}</span><strong>{formatDateTime(observedAt, t.format.dateLocale)}</strong></div>
@@ -728,7 +752,7 @@ function DataStatus({ usage, onOpenStatusPage }: { usage: ProviderUsage; onOpenS
         </div>
         {service?.message ? <p className="inline-note full-span">{service.message}</p> : null}
       </div>
-    </details>
+    </Disclosure>
   );
 }
 
