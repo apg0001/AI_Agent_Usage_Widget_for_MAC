@@ -3,13 +3,15 @@ import {
   Bell,
   Check,
   ChevronRight,
+  CircleHelp,
   Clipboard,
   ExternalLink,
   KeyRound,
   LogOut,
   Power,
   RefreshCw,
-  Settings
+  Settings,
+  X
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -188,6 +190,131 @@ function Toggle({
       />
       <span aria-hidden="true">{checked ? <Check size={12} /> : null}</span>
     </label>
+  );
+}
+
+function UsageAnalysisHelp() {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    function closeOnWindowBlur() {
+      if (dialogRef.current?.open) {
+        dialogRef.current.close();
+      }
+    }
+
+    window.addEventListener("blur", closeOnWindowBlur);
+    return () => window.removeEventListener("blur", closeOnWindowBlur);
+  }, []);
+
+  function openHelp() {
+    const dialog = dialogRef.current;
+    if (!dialog || dialog.open) {
+      return;
+    }
+
+    dialog.showModal();
+    window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+  }
+
+  function closeHelp() {
+    dialogRef.current?.close();
+  }
+
+  function closeFromBackdrop(event: React.MouseEvent<HTMLDialogElement>) {
+    if (event.target === event.currentTarget) {
+      closeHelp();
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        className="analysis-help-trigger"
+        type="button"
+        aria-label="사용량 분석 방식 보기"
+        aria-haspopup="dialog"
+        aria-controls="usage-analysis-help"
+        title="사용량 분석 방식"
+        onClick={openHelp}
+      >
+        <CircleHelp size={16} aria-hidden="true" />
+      </button>
+      <dialog
+        ref={dialogRef}
+        id="usage-analysis-help"
+        className="analysis-dialog"
+        aria-modal="true"
+        aria-labelledby="analysis-help-title"
+        aria-describedby="analysis-help-intro"
+        onClick={closeFromBackdrop}
+        onClose={() => triggerRef.current?.focus()}
+      >
+        <div className="analysis-dialog-panel">
+          <header className="analysis-dialog-header">
+            <div>
+              <span className="eyebrow">HOW IT WORKS</span>
+              <h2 id="analysis-help-title">사용량을 이렇게 분석합니다</h2>
+            </div>
+            <button
+              ref={closeButtonRef}
+              className="analysis-dialog-close"
+              type="button"
+              aria-label="분석 방식 설명 닫기"
+              onClick={closeHelp}
+            >
+              <X size={17} aria-hidden="true" />
+            </button>
+          </header>
+          <div
+            className="analysis-dialog-body"
+            role="region"
+            aria-label="사용량 분석 설명"
+            tabIndex={0}
+          >
+            <p id="analysis-help-intro">
+              제공자가 보고한 사용률과 Quota Bar가 쌓은 정상 이력을 함께 해석합니다.
+            </p>
+            <ol className="analysis-steps">
+              <li>
+                <span aria-hidden="true">1</span>
+                <div>
+                  <strong>기간 경과선</strong>
+                  <p>초기화 시각과 한도 길이로 현재 기간의 경과율을 계산해 막대 위 세로선으로 표시합니다.</p>
+                </div>
+              </li>
+              <li>
+                <span aria-hidden="true">2</span>
+                <div>
+                  <strong>정상 이력만 사용</strong>
+                  <p>오류·미로그인·오래된 캐시는 빼고, 식별할 수 있는 같은 계정·한도·초기화 주기의 0~100% 기록만 비교합니다.</p>
+                </div>
+              </li>
+              <li>
+                <span aria-hidden="true">3</span>
+                <div>
+                  <strong>소진 추세 계산</strong>
+                  <p>최소 2개 기록이 5분 이상 쌓이면 시간당 소진율을 계산합니다. 초기화 시각을 알면 그 전에 100%에 닿을 때, 모르면 현재 증가 추세로 예상 시각을 표시합니다.</p>
+                </div>
+              </li>
+              <li>
+                <span aria-hidden="true">4</span>
+                <div>
+                  <strong>정상 0% 변화만 감지</strong>
+                  <p>정상 응답에서 이전 값이 0%보다 높았다가 0%가 된 경우에만 초기화로 감지합니다.</p>
+                </div>
+              </li>
+            </ol>
+            <p className="analysis-caveat">
+              예측은 최근 사용 패턴을 직선 추세로 본 참고값입니다. 모델 변경, 병렬 작업, 제공자의 집계 지연에 따라 실제 결과와 달라질 수 있습니다.
+            </p>
+          </div>
+        </div>
+      </dialog>
+    </>
   );
 }
 
@@ -790,6 +917,7 @@ function ProviderDetail({
               <span className="eyebrow">PACE</span>
               <h2 id="pace-heading">소진 예상</h2>
             </div>
+            <UsageAnalysisHelp />
           </div>
           <PaceSummary usage={usage} />
         </section>
@@ -1159,6 +1287,9 @@ export default function App() {
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (document.querySelector("dialog:modal")) {
+          return;
+        }
         event.preventDefault();
         goBack();
       }
