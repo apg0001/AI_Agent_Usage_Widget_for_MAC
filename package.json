@@ -1,6 +1,6 @@
 {
   "name": "quota-bar",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Cross-platform tray app for monitoring AI quota usage.",
   "main": "dist/main/main/main.js",
   "scripts": {
