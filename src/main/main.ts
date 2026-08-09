@@ -1,7 +1,15 @@
 import { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from "electron";
 import path from "node:path";
+import {
+  checkForUpdates,
+  getLatestUpdateStatus,
+  initAutoUpdate,
+  onUpdateStatusChange,
+  quitAndInstallUpdate
+} from "./appUpdater.js";
 import { serializeDiagnosticsReport } from "./diagnostics.js";
 import { GenerationRefreshQueue } from "./generationRefreshQueue.js";
+import { getTranslations } from "../shared/i18n.js";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { startOAuthLogin } from "./oauthProviders.js";
 import { platformAdapter } from "./platform/index.js";
@@ -13,11 +21,13 @@ import {
 import {
   clearProviderAuth,
   getSettings,
+  setLanguage,
   setMenuBarDisplayMode,
   setNotificationSettings,
   setRefreshIntervalMs,
   setProviderToken,
   setProviderVisibility,
+  setTheme,
   toPublicSettings
 } from "./settingsStore.js";
 import { buildStaticTrayIconSvg, buildUsageTrayIconSvg, TRAY_ICON_RENDER_SIZE } from "./trayIcon.js";
@@ -25,8 +35,8 @@ import { destroyTrayIconRenderer, renderSvgToNativeImage } from "./trayIconRende
 import { getTrayTitle } from "./trayTitle.js";
 import { UsageHistoryStore } from "./usageHistoryStore.js";
 import { enrichUsageWithInsights } from "./usageInsights.js";
-import { isWithinQuietHours, UsageNotificationDetector } from "./usageNotifications.js";
-import { fetchUsageSnapshot } from "./usageProviders.js";
+import { isWithinQuietHours, UsageNotificationDetector, UsageNotificationEvent } from "./usageNotifications.js";
+import { fetchUsageSnapshot, formatRemaining } from "./usageProviders.js";
 import {
   AppSettings,
   NotificationSettings,
@@ -49,6 +59,8 @@ let tray: Tray | null = null;
 let window: BrowserWindow | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let serviceStatusTimer: ReturnType<typeof setInterval> | null = null;
+let updateCheckTimer: ReturnType<typeof setInterval> | null = null;
+let blurHideTimer: ReturnType<typeof setTimeout> | null = null;
 let latestSnapshot: UsageSnapshot | null = null;
 let usageHistoryStore: UsageHistoryStore | null = null;
 let latestServiceStatuses: Partial<Record<ProviderId, RawServiceStatus>> = {};
@@ -61,11 +73,17 @@ const STATUS_PAGE_URLS: Partial<Record<ProviderId, string>> = {
   claude: "https://status.claude.com/"
 };
 
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60_000;
+
 function showWindow() {
   if (!window) {
     return;
   }
 
+  if (blurHideTimer) {
+    clearTimeout(blurHideTimer);
+    blurHideTimer = null;
+  }
   positionWindow();
   window.show();
   window.focus();
@@ -122,9 +140,21 @@ function createWindow() {
   }
 
   window.on("blur", () => {
-    if (!process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
-      window?.hide();
+    if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
+      return;
     }
+    // A blur can fire from a transient, unrelated focus shift (e.g. a native
+    // notification toast briefly taking focus) rather than the user actually
+    // clicking away. Debounce and re-check so those don't hide the panel.
+    if (blurHideTimer) {
+      clearTimeout(blurHideTimer);
+    }
+    blurHideTimer = setTimeout(() => {
+      blurHideTimer = null;
+      if (window && !window.isDestroyed() && !window.isFocused()) {
+        window.hide();
+      }
+    }, 150);
   });
 }
 
@@ -184,32 +214,45 @@ async function updateTray(snapshot: UsageSnapshot, generation: number) {
   tray?.setToolTip(`Quota Bar\n${getTrayTitle(snapshot)}`);
 }
 
+function usageEventContent(event: UsageNotificationEvent, language: AppSettings["language"]) {
+  const t = getTranslations(language);
+  if (event.type === "reset") {
+    return { title: t.main.usageResetTitle(event.providerLabel), body: t.main.usageResetBody(event.windowLabel) };
+  }
+  if (event.type === "threshold") {
+    return {
+      title: t.main.usageThresholdTitle(event.providerLabel, event.windowLabel, event.threshold ?? 0),
+      body: t.main.usageThresholdBody(event.percent, event.resetsAt ? formatRemaining(event.resetsAt, language) : undefined)
+    };
+  }
+  return { title: t.main.usageProjectedTitle(event.providerLabel), body: t.main.usageProjectedBody(event.windowLabel) };
+}
+
 function notifyUsageEvents(snapshot: UsageSnapshot) {
   if (!Notification.isSupported()) {
     return;
   }
 
   for (const event of usageNotificationDetector.detect(snapshot.usage, snapshot.settings.notifications)) {
-    new Notification({
-      title: event.title,
-      body: event.body
-    }).show();
+    const { title, body } = usageEventContent(event, snapshot.settings.language);
+    new Notification({ title, body }).show();
   }
 }
 
-function sharedServiceStatus(provider: ProviderId): ProviderServiceStatus {
+function sharedServiceStatus(provider: ProviderId, language: AppSettings["language"]): ProviderServiceStatus {
+  const t = getTranslations(language);
   const status = latestServiceStatuses[provider];
   if (!status || status.state === "unknown") {
     return {
       state: "unknown",
-      label: "상태 확인 불가",
+      label: t.main.serviceStatusUnknownLabel,
       checkedAt: status?.checkedAt,
       statusPageUrl: STATUS_PAGE_URLS[provider]
     };
   }
 
   const state = status.state === "outage" ? "outage" : status.state === "operational" ? "operational" : "degraded";
-  const label = state === "operational" ? "정상 운영" : state === "outage" ? "서비스 장애" : "일부 지연";
+  const label = state === "operational" ? t.main.serviceOperationalLabel : state === "outage" ? t.main.serviceOutageLabel : t.main.serviceDegradedLabel;
   const affected = status.components
     .filter((component) => component.status !== "operational")
     .map((component) => component.name)
@@ -228,6 +271,7 @@ function notifyServiceStatusChanges(settings: AppSettings) {
     return;
   }
 
+  const t = getTranslations(settings.language);
   const now = new Date();
   const quiet = isWithinQuietHours(settings.notifications.quietHours, now);
   for (const provider of PROVIDERS) {
@@ -248,13 +292,13 @@ function notifyServiceStatusChanges(settings: AppSettings) {
     }
     if (current === "degraded" || current === "outage" || current === "maintenance") {
       new Notification({
-        title: `${provider.label} 서비스 상태 변경`,
-        body: current === "outage" ? "공식 상태 페이지에서 서비스 장애가 확인되었습니다." : "공식 상태 페이지에서 일부 지연이 확인되었습니다."
+        title: t.main.serviceChangeTitle(provider.label),
+        body: current === "outage" ? t.main.serviceOutageBody : t.main.serviceDegradedBody
       }).show();
     } else if (current === "operational" && previous !== "operational") {
       new Notification({
-        title: `${provider.label} 서비스 복구`,
-        body: "공식 상태 페이지가 정상 운영으로 돌아왔습니다."
+        title: t.main.serviceRecoveredTitle(provider.label),
+        body: t.main.serviceRecoveredBody
       }).show();
     }
   }
@@ -281,7 +325,7 @@ async function performUsageRefresh(generation: number): Promise<UsageSnapshot | 
   }
   const usage = enrichUsageWithInsights(fetchedUsage, usageHistoryStore?.getAllPoints() ?? []).map((item) => ({
     ...item,
-    serviceStatus: sharedServiceStatus(item.provider)
+    serviceStatus: sharedServiceStatus(item.provider, settings.language)
   }));
   const snapshot: UsageSnapshot = { settings: toPublicSettings(settings), usage };
   latestSnapshot = snapshot;
@@ -325,6 +369,14 @@ function registerIpc() {
     setMenuBarDisplayMode(mode);
     return refreshAfterSettingsMutation();
   });
+  ipcMain.handle("settings:theme", async (_event, theme: AppSettings["theme"]) => {
+    setTheme(theme);
+    return refreshAfterSettingsMutation();
+  });
+  ipcMain.handle("settings:language", async (_event, language: AppSettings["language"]) => {
+    setLanguage(language);
+    return refreshAfterSettingsMutation();
+  });
   ipcMain.handle("settings:refresh-interval", async (_event, intervalMs: number) => {
     setRefreshIntervalMs(intervalMs);
     restartRefreshTimer();
@@ -336,19 +388,19 @@ function registerIpc() {
   });
   ipcMain.handle("history:get", (_event, provider: ProviderId, range: UsageHistoryRange) => {
     if (!PROVIDERS.some((item) => item.id === provider) || !["24h", "7d", "30d"].includes(range)) {
-      throw new Error("지원하지 않는 사용량 이력 요청입니다.");
+      throw new Error(getTranslations(getSettings().language).main.unsupportedHistoryRequest);
     }
     return usageHistoryStore?.getProviderHistory(provider, range) ?? { provider, range, points: [] };
   });
   ipcMain.handle("provider:token-login", async (_event, payload: TokenLoginPayload) => {
     if (payload.provider !== "codex") {
-      throw new Error("토큰 로그인은 Codex만 지원합니다.");
+      throw new Error(getTranslations(getSettings().language).main.tokenLoginCodexOnly);
     }
     setProviderToken(payload.provider, payload.token);
     return refreshAfterSettingsMutation();
   });
   ipcMain.handle("provider:oauth-login", async (_event, provider: ProviderId) => {
-    const result = await startOAuthLogin(provider);
+    const result = await startOAuthLogin(provider, getSettings().language);
     const snapshot = await refreshAfterSettingsMutation();
     return { result, snapshot };
   });
@@ -380,6 +432,10 @@ function registerIpc() {
       await shell.openExternal(statusPageUrl);
     }
   });
+  ipcMain.handle("app:get-version", () => app.getVersion());
+  ipcMain.handle("app:get-update-status", () => getLatestUpdateStatus());
+  ipcMain.handle("app:check-for-updates", () => checkForUpdates());
+  ipcMain.handle("app:quit-and-install-update", () => quitAndInstallUpdate());
 }
 
 if (hasSingleInstanceLock) {
@@ -397,13 +453,14 @@ if (hasSingleInstanceLock) {
     usageHistoryStore = new UsageHistoryStore(path.join(app.getPath("userData"), "usage-history.json"));
     createWindow();
     tray = new Tray(await createStaticTrayIcon());
-    const trayMenu = Menu.buildFromTemplate([
-      { label: "Quota Bar 열기", click: toggleWindow },
-      { type: "separator" },
-      { label: "종료", click: () => app.quit() }
-    ]);
     tray.on("click", toggleWindow);
     tray.on("right-click", () => {
+      const t = getTranslations(getSettings().language);
+      const trayMenu = Menu.buildFromTemplate([
+        { label: t.main.trayOpen, click: toggleWindow },
+        { type: "separator" },
+        { label: t.main.trayQuit, click: () => app.quit() }
+      ]);
       tray?.popUpContextMenu(trayMenu);
     });
     void refreshUsage();
@@ -412,6 +469,13 @@ if (hasSingleInstanceLock) {
       void refreshServiceStatuses();
     }, 5 * 60_000);
     restartRefreshTimer();
+    onUpdateStatusChange((status) => {
+      window?.webContents.send("update:status", status);
+    });
+    initAutoUpdate();
+    updateCheckTimer = setInterval(() => {
+      void checkForUpdates();
+    }, UPDATE_CHECK_INTERVAL_MS);
     if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
       setTimeout(showWindow, 500);
     }
@@ -428,6 +492,12 @@ app.on("before-quit", () => {
   }
   if (serviceStatusTimer) {
     clearInterval(serviceStatusTimer);
+  }
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+  }
+  if (blurHideTimer) {
+    clearTimeout(blurHideTimer);
   }
   destroyTrayIconRenderer();
 });

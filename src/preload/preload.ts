@@ -1,9 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  LanguageSetting,
   NotificationSettings,
   ProviderHistory,
   ProviderId,
+  ThemeSetting,
   TokenLoginPayload,
+  UpdateStatus,
   UsageHistoryRange,
   UsageSnapshot
 } from "../shared/types.js";
@@ -15,6 +18,8 @@ const api = {
     ipcRenderer.invoke("provider:visibility", provider, visible) as Promise<UsageSnapshot>,
   setMenuBarDisplayMode: (mode: "icons" | "iconsWithPercent") =>
     ipcRenderer.invoke("settings:menu-bar-display-mode", mode) as Promise<UsageSnapshot>,
+  setTheme: (theme: ThemeSetting) => ipcRenderer.invoke("settings:theme", theme) as Promise<UsageSnapshot>,
+  setLanguage: (language: LanguageSetting) => ipcRenderer.invoke("settings:language", language) as Promise<UsageSnapshot>,
   setRefreshIntervalMs: (intervalMs: number) =>
     ipcRenderer.invoke("settings:refresh-interval", intervalMs) as Promise<UsageSnapshot>,
   setNotificationSettings: (settings: NotificationSettings) =>
@@ -34,11 +39,22 @@ const api = {
   setLaunchAtLogin: (enabled: boolean) => ipcRenderer.invoke("app:set-launch-at-login", enabled) as Promise<boolean>,
   copyDiagnostics: () => ipcRenderer.invoke("app:copy-diagnostics") as Promise<boolean>,
   openStatusPage: (provider: ProviderId) => ipcRenderer.invoke("app:open-status-page", provider) as Promise<void>,
+  getAppVersion: () => ipcRenderer.invoke("app:get-version") as Promise<string>,
+  getUpdateStatus: () => ipcRenderer.invoke("app:get-update-status") as Promise<UpdateStatus>,
+  checkForUpdates: () => ipcRenderer.invoke("app:check-for-updates") as Promise<void>,
+  quitAndInstallUpdate: () => ipcRenderer.invoke("app:quit-and-install-update") as Promise<void>,
   onUsageSnapshot: (callback: (snapshot: UsageSnapshot) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: UsageSnapshot) => callback(snapshot);
     ipcRenderer.on("usage:snapshot", listener);
     return () => {
       ipcRenderer.removeListener("usage:snapshot", listener);
+    };
+  },
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status);
+    ipcRenderer.on("update:status", listener);
+    return () => {
+      ipcRenderer.removeListener("update:status", listener);
     };
   }
 };

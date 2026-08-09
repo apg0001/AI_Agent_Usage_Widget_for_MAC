@@ -13,19 +13,23 @@ import {
   Settings,
   X
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, FormEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
+  LanguageSetting,
   NotificationSettings,
   ProviderHistory,
   ProviderId,
   ProviderNotificationSettings,
   ProviderUsage,
   PROVIDERS,
+  ThemeSetting,
   TokenLoginPayload,
+  UpdateStatus,
   UsageHistoryRange,
   UsageLimitWindow,
   UsageSnapshot
 } from "../../shared/types";
+import { getTranslations, Translations } from "../../shared/i18n";
 import { buildHistoryAxisTicks, normalizeHistoryPoints } from "./historyAxis";
 import "./styles.css";
 
@@ -36,49 +40,18 @@ type View =
 
 type OverviewFocusKey = `provider:${ProviderId}` | "settings-toolbar" | "settings-empty";
 
-const statusLabel: Record<ProviderUsage["status"], string> = {
-  ok: "정상",
-  warning: "주의",
-  critical: "임박",
-  "signed-out": "미로그인",
-  error: "오류"
-};
-
-const serviceStatusLabel: Record<NonNullable<ProviderUsage["serviceStatus"]>["state"], string> = {
-  operational: "서비스 정상",
-  degraded: "일부 지연",
-  outage: "서비스 장애",
-  unknown: "상태 확인 중"
-};
-
-const sourceFallbackLabel: Record<NonNullable<ProviderUsage["source"]>, string> = {
-  demo: "예시 데이터",
-  local: "로컬 세션",
-  api: "제공자 사용량 API",
-  token: "저장된 토큰"
-};
-
-const sourceModeLabel: Record<NonNullable<ProviderUsage["sourceInfo"]>["mode"], string> = {
-  local: "로컬",
-  poll: "주기 조회",
-  cache: "캐시",
-  estimate: "추정"
-};
-
 const cooldownOptions = [5, 15, 30, 60];
-const historyRangeLabels: Record<UsageHistoryRange, string> = {
-  "24h": "24시간",
-  "7d": "7일",
-  "30d": "30일"
-};
 
-const loginHelp: Record<ProviderId, string> = {
-  codex: "Codex CLI에서 로그인하거나 아래에 토큰을 입력하세요.",
-  claude: "Claude Code를 열고 /login을 실행하세요.",
-  gemini: "Gemini CLI 로그인 또는 Google OAuth로 연결하세요."
-};
+const I18nContext = createContext<{ t: Translations; lang: LanguageSetting }>({
+  t: getTranslations("ko"),
+  lang: "ko"
+});
 
-function formatTime(value?: string) {
+function useI18n() {
+  return useContext(I18nContext);
+}
+
+function formatTime(value: string | undefined, locale: string) {
   if (!value) {
     return "-";
   }
@@ -88,14 +61,14 @@ function formatTime(value?: string) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
   }).format(date);
 }
 
-function formatDateTime(value?: string) {
+function formatDateTime(value: string | undefined, locale: string) {
   if (!value) {
     return "-";
   }
@@ -105,7 +78,7 @@ function formatDateTime(value?: string) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -113,14 +86,7 @@ function formatDateTime(value?: string) {
   }).format(date);
 }
 
-function refreshIntervalLabel(value?: number) {
-  if (!value) {
-    return "자동 갱신";
-  }
-  return value < 60_000 ? `${value / 1_000}초마다 갱신` : `${value / 60_000}분마다 갱신`;
-}
-
-function providerWindows(usage: ProviderUsage): UsageLimitWindow[] {
+function providerWindows(usage: ProviderUsage, t: Translations): UsageLimitWindow[] {
   if (usage.windows?.length) {
     return usage.windows;
   }
@@ -128,13 +94,32 @@ function providerWindows(usage: ProviderUsage): UsageLimitWindow[] {
   return [
     {
       id: "total",
-      label: "사용량",
+      label: t.provider.fallbackWindowLabel,
       percent: usage.percent,
       resetsAt: usage.resetsAt,
       resetRemaining: usage.resetRemaining,
       available: usage.status !== "signed-out" && usage.status !== "error"
     }
   ];
+}
+
+function updateStatusText(t: Translations, status: UpdateStatus): string {
+  switch (status.state) {
+    case "checking":
+      return t.updates.statusChecking;
+    case "available":
+      return t.updates.statusAvailable(status.version ?? "");
+    case "downloading":
+      return t.updates.statusDownloading(status.progressPercent ?? 0);
+    case "downloaded":
+      return t.updates.statusDownloaded(status.version ?? "");
+    case "not-available":
+      return status.message ?? t.updates.statusNotAvailable;
+    case "error":
+      return t.updates.statusError(status.message ?? "");
+    default:
+      return "";
+  }
 }
 
 function windowIsAvailable(window: UsageLimitWindow) {
@@ -195,6 +180,7 @@ function Toggle({
 }
 
 function UsageAnalysisHelp() {
+  const { t } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -236,10 +222,10 @@ function UsageAnalysisHelp() {
         ref={triggerRef}
         className="analysis-help-trigger"
         type="button"
-        aria-label="사용량 분석 방식 보기"
+        aria-label={t.analysisHelp.triggerAria}
         aria-haspopup="dialog"
         aria-controls="usage-analysis-help"
-        title="사용량 분석 방식"
+        title={t.analysisHelp.triggerTitle}
         onClick={openHelp}
       >
         <CircleHelp size={16} aria-hidden="true" />
@@ -258,13 +244,13 @@ function UsageAnalysisHelp() {
           <header className="analysis-dialog-header">
             <div>
               <span className="eyebrow">HOW IT WORKS</span>
-              <h2 id="analysis-help-title">사용량을 이렇게 분석합니다</h2>
+              <h2 id="analysis-help-title">{t.analysisHelp.title}</h2>
             </div>
             <button
               ref={closeButtonRef}
               className="analysis-dialog-close"
               type="button"
-              aria-label="분석 방식 설명 닫기"
+              aria-label={t.analysisHelp.closeAria}
               onClick={closeHelp}
             >
               <X size={17} aria-hidden="true" />
@@ -273,44 +259,25 @@ function UsageAnalysisHelp() {
           <div
             className="analysis-dialog-body"
             role="region"
-            aria-label="사용량 분석 설명"
+            aria-label={t.analysisHelp.bodyAria}
             tabIndex={0}
           >
             <p id="analysis-help-intro">
-              제공자가 보고한 사용률과 Quota Bar가 쌓은 정상 이력을 함께 해석합니다.
+              {t.analysisHelp.intro}
             </p>
             <ol className="analysis-steps">
-              <li>
-                <span aria-hidden="true">1</span>
-                <div>
-                  <strong>기간 경과선</strong>
-                  <p>초기화 시각과 한도 길이로 현재 기간의 경과율을 계산해 막대 위 세로선으로 표시합니다.</p>
-                </div>
-              </li>
-              <li>
-                <span aria-hidden="true">2</span>
-                <div>
-                  <strong>정상 이력만 사용</strong>
-                  <p>오류·미로그인·오래된 캐시는 빼고, 식별할 수 있는 같은 계정·한도·초기화 주기의 0~100% 기록만 비교합니다.</p>
-                </div>
-              </li>
-              <li>
-                <span aria-hidden="true">3</span>
-                <div>
-                  <strong>소진 추세 계산</strong>
-                  <p>최소 2개 기록이 5분 이상 쌓이면 시간당 소진율을 계산합니다. 초기화 시각을 알면 그 전에 100%에 닿을 때, 모르면 현재 증가 추세로 예상 시각을 표시합니다.</p>
-                </div>
-              </li>
-              <li>
-                <span aria-hidden="true">4</span>
-                <div>
-                  <strong>정상 0% 변화만 감지</strong>
-                  <p>정상 응답에서 이전 값이 0%보다 높았다가 0%가 된 경우에만 초기화로 감지합니다.</p>
-                </div>
-              </li>
+              {t.analysisHelp.steps.map((step, index) => (
+                <li key={step.title}>
+                  <span aria-hidden="true">{index + 1}</span>
+                  <div>
+                    <strong>{step.title}</strong>
+                    <p>{step.body}</p>
+                  </div>
+                </li>
+              ))}
             </ol>
             <p className="analysis-caveat">
-              예측은 최근 사용 패턴을 직선 추세로 본 참고값입니다. 모델 변경, 병렬 작업, 제공자의 집계 지연에 따라 실제 결과와 달라질 수 있습니다.
+              {t.analysisHelp.caveat}
             </p>
           </div>
         </div>
@@ -320,9 +287,10 @@ function UsageAnalysisHelp() {
 }
 
 function WindowMeter({ usage, window, compact = false }: { usage: ProviderUsage; window: UsageLimitWindow; compact?: boolean }) {
+  const { t } = useI18n();
   const available = windowIsAvailable(window);
   const percent = available ? Math.min(100, Math.max(0, Math.round(window.percent))) : 0;
-  const description = window.message ?? (window.resetRemaining ? `초기화까지 ${window.resetRemaining}` : "초기화 시간 없음");
+  const description = window.message ?? (window.resetRemaining ? t.format.resetUntil(window.resetRemaining) : t.format.noResetTime);
   const elapsedPercent = compact ? undefined : getWindowElapsedPercent(window);
   const roundedElapsedPercent = elapsedPercent === undefined ? undefined : Math.round(elapsedPercent);
   const markerPosition = elapsedPercent === undefined ? undefined : Math.min(99.5, Math.max(0.5, elapsedPercent));
@@ -336,13 +304,13 @@ function WindowMeter({ usage, window, compact = false }: { usage: ProviderUsage;
       <div
         className="meter"
         role="progressbar"
-        aria-label={`${usage.label} ${window.label} 사용률`}
+        aria-label={t.provider.windowUsageAria(usage.label, window.label)}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={available ? percent : undefined}
         aria-valuetext={available
-          ? `${percent}% 사용${roundedElapsedPercent === undefined ? "" : `, 현재 한도 기간 ${roundedElapsedPercent}% 경과`}`
-          : "사용량 정보 없음"}
+          ? t.provider.windowUsageValueText(percent, roundedElapsedPercent)
+          : t.provider.windowUnavailable}
       >
         <span className={`meter-fill ${meterTone(percent, usage.status)}`} style={{ width: `${percent}%` }} />
         {markerPosition === undefined ? null : (
@@ -354,7 +322,7 @@ function WindowMeter({ usage, window, compact = false }: { usage: ProviderUsage;
         {roundedElapsedPercent === undefined ? null : (
           <small className="period-legend">
             <span aria-hidden="true" />
-            기간 {roundedElapsedPercent}% 경과
+            {t.provider.periodElapsed(roundedElapsedPercent)}
           </small>
         )}
       </div>
@@ -363,6 +331,7 @@ function WindowMeter({ usage, window, compact = false }: { usage: ProviderUsage;
 }
 
 function StatusBadge({ usage }: { usage: ProviderUsage }) {
+  const { t } = useI18n();
   return (
     <span
       className={`status-badge status-${usage.status}`}
@@ -370,8 +339,8 @@ function StatusBadge({ usage }: { usage: ProviderUsage }) {
       aria-live="polite"
       aria-atomic="true"
     >
-      <span className="sr-only">{usage.label} 상태: </span>
-      {statusLabel[usage.status]}
+      <span className="sr-only">{t.provider.statusAriaPrefix(usage.label)}</span>
+      {t.status[usage.status]}
     </span>
   );
 }
@@ -385,6 +354,7 @@ function TokenLoginForm({
   busy: boolean;
   onTokenLogin: (payload: TokenLoginPayload) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [token, setToken] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -402,14 +372,14 @@ function TokenLoginForm({
       <input
         type="password"
         value={token}
-        placeholder="액세스 토큰"
-        aria-label={`${provider} 액세스 토큰`}
+        placeholder={t.auth.tokenPlaceholder}
+        aria-label={t.auth.tokenAria(provider)}
         autoComplete="off"
         onChange={(event) => setToken(event.target.value)}
       />
       <button className="primary-button" type="submit" disabled={busy || !token.trim()}>
         <KeyRound size={14} aria-hidden="true" />
-        연결
+        {t.auth.connect}
       </button>
     </form>
   );
@@ -430,6 +400,7 @@ function AuthActions({
   onOAuthLogin: (provider: ProviderId) => Promise<void>;
   onLogout: (provider: ProviderId) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const inferredConnection = hasSavedAuth || ["local", "api", "token"].includes(usage.source ?? "");
   const connected = usage.connectionStatus ? usage.connectionStatus === "connected" : inferredConnection;
 
@@ -441,24 +412,24 @@ function AuthActions({
     <section className="detail-card auth-card" aria-labelledby="auth-heading">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">연결</span>
-          <h2 id="auth-heading">{connected ? "저장된 계정" : "로그인이 필요합니다"}</h2>
+          <span className="eyebrow">{t.auth.connectionEyebrow}</span>
+          <h2 id="auth-heading">{connected ? t.auth.savedAccount : t.auth.loginRequired}</h2>
         </div>
         {hasSavedAuth ? (
           <button className="danger-button" type="button" disabled={busy} onClick={() => onLogout(usage.provider)}>
             <LogOut size={14} aria-hidden="true" />
-            로그아웃
+            {t.auth.logout}
           </button>
         ) : null}
       </div>
-      {!connected ? <p className="supporting-text">{loginHelp[usage.provider]}</p> : null}
+      {!connected ? <p className="supporting-text">{t.loginHelp[usage.provider]}</p> : null}
       {!connected && usage.provider === "codex" ? (
         <TokenLoginForm provider={usage.provider} busy={busy} onTokenLogin={onTokenLogin} />
       ) : null}
       {!connected && usage.provider === "gemini" ? (
         <button className="primary-button full-button" type="button" disabled={busy} onClick={() => onOAuthLogin(usage.provider)}>
           <KeyRound size={14} aria-hidden="true" />
-          Google OAuth로 연결
+          {t.auth.googleOAuth}
         </button>
       ) : null}
     </section>
@@ -474,7 +445,8 @@ function ProviderCard({
   buttonRef: (element: HTMLButtonElement | null) => void;
   onOpen: (provider: ProviderId) => void;
 }) {
-  const windows = providerWindows(usage).slice(0, 2);
+  const { t } = useI18n();
+  const windows = providerWindows(usage, t).slice(0, 2);
   const shortMessage = usage.status === "signed-out" || usage.status === "error" || usage.stale ? usage.message : undefined;
 
   return (
@@ -488,10 +460,10 @@ function ProviderCard({
           ref={buttonRef}
           className="detail-button"
           type="button"
-          aria-label={`${usage.label} 상세 보기`}
+          aria-label={t.provider.detailAria(usage.label)}
           onClick={() => onOpen(usage.provider)}
         >
-          상세
+          {t.provider.detail}
           <ChevronRight size={15} aria-hidden="true" />
         </button>
       </div>
@@ -514,7 +486,8 @@ function HistoryChart({
   loading: boolean;
   range: UsageHistoryRange;
 }) {
-  const primaryWindowId = providerWindows(usage)[0]?.id;
+  const { t } = useI18n();
+  const primaryWindowId = providerWindows(usage, t)[0]?.id;
   const points = useMemo(
     () => normalizeHistoryPoints((history?.points ?? []).filter((point) => point.windowId === primaryWindowId)),
     [history?.points, primaryWindowId]
@@ -550,8 +523,8 @@ function HistoryChart({
       <div className="history-empty" role="status">
         <span className={loading ? "loading-dot" : "learning-dot"} aria-hidden="true" />
         <div>
-          <strong>{loading ? "기록 불러오는 중" : "사용 패턴 학습 중"}</strong>
-          <p>{loading ? "최근 기록을 확인하고 있습니다." : "사용량이 두 번 이상 수집되면 그래프가 나타납니다."}</p>
+          <strong>{loading ? t.history.loadingTitle : t.history.learningTitle}</strong>
+          <p>{loading ? t.history.loadingBody : t.history.learningBody}</p>
         </div>
       </div>
     );
@@ -560,7 +533,7 @@ function HistoryChart({
   const firstTick = geometry.ticks[0];
   const lastTick = geometry.ticks.at(-1);
   const observedRangeLabel = firstTick && lastTick
-    ? `, ${firstTick.fullLabel}부터 ${lastTick.fullLabel}까지`
+    ? t.history.observedRange(firstTick.fullLabel, lastTick.fullLabel)
     : "";
 
   return (
@@ -568,7 +541,7 @@ function HistoryChart({
       <svg
         viewBox="0 0 320 70"
         role="img"
-        aria-label={`${usage.label} 최근 ${historyRangeLabels[range]} 사용률${observedRangeLabel}, 최저 ${Math.round(geometry.min)}%, 최고 ${Math.round(geometry.max)}%`}
+        aria-label={t.history.chartAria(usage.label, t.historyRange[range], observedRangeLabel, Math.round(geometry.min), Math.round(geometry.max))}
         preserveAspectRatio="none"
       >
         <line x1="8" x2="312" y1="8" y2="8" className="chart-guide" />
@@ -589,13 +562,14 @@ function HistoryChart({
           </time>
         ))}
       </div>
-      <p className="history-summary">최저 {Math.round(geometry.min)}% · 최고 {Math.round(geometry.max)}% · {points.length}개 기록</p>
+      <p className="history-summary">{t.history.summary(Math.round(geometry.min), Math.round(geometry.max), points.length)}</p>
     </div>
   );
 }
 
 function PaceSummary({ usage }: { usage: ProviderUsage }) {
-  const windows = providerWindows(usage);
+  const { t } = useI18n();
+  const windows = providerWindows(usage, t);
   const paceWindow =
     windows.find((window) => window.pace?.estimatedExhaustedAt) ??
     windows.find((window) => window.pace?.projectedPercentAtReset !== undefined) ??
@@ -607,8 +581,8 @@ function PaceSummary({ usage }: { usage: ProviderUsage }) {
       <div className="pace-content learning">
         <span className="pace-orb" aria-hidden="true" />
         <div>
-          <strong>소진 속도를 학습 중입니다</strong>
-          <p>{pace?.sampleCount ? `${pace.sampleCount}개 기록 수집됨` : "기록이 쌓이면 초기화 시점의 예상 사용률을 알려드려요."}</p>
+          <strong>{t.pace.learningTitle}</strong>
+          <p>{pace?.sampleCount ? t.pace.learningBodyWithSamples(pace.sampleCount) : t.pace.learningBodyNoSamples}</p>
         </div>
       </div>
     );
@@ -624,12 +598,12 @@ function PaceSummary({ usage }: { usage: ProviderUsage }) {
         <span className="eyebrow">{paceWindow?.label}</span>
         <strong>
           {pace.estimatedExhaustedAt
-            ? `${formatDateTime(pace.estimatedExhaustedAt)} 소진 예상`
+            ? t.pace.exhaustedAt(formatDateTime(pace.estimatedExhaustedAt, t.format.dateLocale))
             : projected === undefined
-              ? "예상치 계산 중"
-              : `초기화 시점 약 ${projected}% 예상`}
+              ? t.pace.calculating
+              : t.pace.projectedAtReset(projected)}
         </strong>
-        <p>{rate === undefined ? `${pace.sampleCount}개 기록 기반` : `시간당 ${rate.toFixed(1)}% · ${pace.sampleCount}개 기록 기반`}</p>
+        <p>{rate === undefined ? t.pace.sampleBased(pace.sampleCount) : t.pace.rateAndSampleBased(rate.toFixed(1), pace.sampleCount)}</p>
       </div>
     </div>
   );
@@ -648,6 +622,8 @@ function ProviderAlertSettings({
   busy: boolean;
   onChange: (settings: ProviderNotificationSettings) => Promise<void>;
 }) {
+  const { t } = useI18n();
+
   function toggleThreshold(threshold: number, enabled: boolean) {
     const thresholds = enabled
       ? Array.from(new Set([...settings.thresholds, threshold])).sort((a, b) => a - b)
@@ -660,26 +636,26 @@ function ProviderAlertSettings({
       <summary>
         <span>
           <Bell size={15} aria-hidden="true" />
-          알림 설정
+          {t.alerts.heading}
         </span>
-        <small>{settings.enabled && globalEnabled ? "켜짐" : "꺼짐"}</small>
+        <small>{settings.enabled && globalEnabled ? t.alerts.on : t.alerts.off}</small>
       </summary>
       <div className="disclosure-content">
-        {!globalEnabled ? <p className="inline-note">전체 알림이 꺼져 있습니다. 설정 화면에서 먼저 켜주세요.</p> : null}
+        {!globalEnabled ? <p className="inline-note">{t.alerts.globalDisabledNote}</p> : null}
         <div className="setting-row compact-setting-row">
           <div>
-            <strong>{usage.label} 알림</strong>
-            <small>이 제공자의 알림만 켜거나 끕니다.</small>
+            <strong>{t.alerts.providerToggleLabel(usage.label)}</strong>
+            <small>{t.alerts.providerToggleHint}</small>
           </div>
           <Toggle
             checked={settings.enabled}
             disabled={busy || !globalEnabled}
-            label={`${usage.label} 알림`}
+            label={t.alerts.providerToggleLabel(usage.label)}
             onChange={(enabled) => void onChange({ ...settings, enabled })}
           />
         </div>
         <fieldset className="threshold-fieldset" disabled={busy || !globalEnabled || !settings.enabled}>
-          <legend>사용률 경고</legend>
+          <legend>{t.alerts.thresholdLegend}</legend>
           <div className="threshold-options">
             {[75, 90, 100].map((threshold) => (
               <label key={threshold} className="check-chip">
@@ -700,7 +676,7 @@ function ProviderAlertSettings({
             disabled={busy || !globalEnabled || !settings.enabled}
             onChange={(event) => void onChange({ ...settings, resetEnabled: event.target.checked })}
           />
-          한도가 초기화되면 알림
+          {t.alerts.resetNotify}
         </label>
         <label className="check-row">
           <input
@@ -709,7 +685,7 @@ function ProviderAlertSettings({
             disabled={busy || !globalEnabled || !settings.enabled}
             onChange={(event) => void onChange({ ...settings, projectedExhaustionEnabled: event.target.checked })}
           />
-          초기화 전에 소진될 것으로 예상되면 알림
+          {t.alerts.projectedNotify}
         </label>
       </div>
     </details>
@@ -717,8 +693,9 @@ function ProviderAlertSettings({
 }
 
 function DataStatus({ usage, onOpenStatusPage }: { usage: ProviderUsage; onOpenStatusPage: (provider: ProviderId) => void }) {
-  const sourceLabel = usage.sourceInfo?.label ?? (usage.source ? sourceFallbackLabel[usage.source] : "알 수 없음");
-  const sourceMode = usage.sourceInfo?.mode ? sourceModeLabel[usage.sourceInfo.mode] : undefined;
+  const { t } = useI18n();
+  const sourceLabel = usage.sourceInfo?.label ?? (usage.source ? t.sourceFallback[usage.source] : t.dataStatus.unknownSource);
+  const sourceMode = usage.sourceInfo?.mode ? t.sourceMode[usage.sourceInfo.mode] : undefined;
   const observedAt = usage.freshness?.observedAt ?? usage.dataUpdatedAt;
   const receivedAt = usage.freshness?.receivedAt ?? usage.updatedAt;
   const service = usage.serviceStatus;
@@ -726,25 +703,25 @@ function DataStatus({ usage, onOpenStatusPage }: { usage: ProviderUsage; onOpenS
   return (
     <details className="disclosure-card">
       <summary>
-        <span>데이터 상태</span>
-        <small>{usage.stale ? "캐시 표시 중" : sourceLabel}</small>
+        <span>{t.dataStatus.heading}</span>
+        <small>{usage.stale ? t.dataStatus.cached : sourceLabel}</small>
       </summary>
       <div className="disclosure-content data-grid">
-        <div><span>출처</span><strong>{sourceLabel}{sourceMode ? ` · ${sourceMode}` : ""}</strong></div>
-        <div><span>원본 관측</span><strong>{formatDateTime(observedAt)}</strong></div>
-        <div><span>앱 수신</span><strong>{formatDateTime(receivedAt)}</strong></div>
-        {usage.freshness?.retryAt ? <div><span>다음 재시도</span><strong>{formatDateTime(usage.freshness.retryAt)}</strong></div> : null}
+        <div><span>{t.dataStatus.source}</span><strong>{sourceLabel}{sourceMode ? ` · ${sourceMode}` : ""}</strong></div>
+        <div><span>{t.dataStatus.observed}</span><strong>{formatDateTime(observedAt, t.format.dateLocale)}</strong></div>
+        <div><span>{t.dataStatus.received}</span><strong>{formatDateTime(receivedAt, t.format.dateLocale)}</strong></div>
+        {usage.freshness?.retryAt ? <div><span>{t.dataStatus.nextRetry}</span><strong>{formatDateTime(usage.freshness.retryAt, t.format.dateLocale)}</strong></div> : null}
         {usage.freshness?.staleReason ? <p className="inline-note full-span">{usage.freshness.staleReason}</p> : null}
         <div className="service-row full-span">
           <div>
-            <span>제공자 서비스</span>
+            <span>{t.dataStatus.providerService}</span>
             <strong className={`service-${service?.state ?? "unknown"}`}>
-              {service?.label ?? serviceStatusLabel[service?.state ?? "unknown"]}
+              {service?.label ?? t.serviceStatus[service?.state ?? "unknown"]}
             </strong>
           </div>
           {service?.statusPageUrl ? (
             <button className="text-button" type="button" onClick={() => onOpenStatusPage(usage.provider)}>
-              상태 페이지
+              {t.dataStatus.statusPage}
               <ExternalLink size={13} aria-hidden="true" />
             </button>
           ) : null}
@@ -778,6 +755,7 @@ function Overview({
   registerFocusTarget: (key: OverviewFocusKey, element: HTMLButtonElement | null) => void;
   onQuit: () => void;
 }) {
+  const { t } = useI18n();
   const usage = snapshot?.usage ?? [];
   const lastUpdated = usage.map((item) => item.updatedAt).sort().at(-1);
 
@@ -785,43 +763,43 @@ function Overview({
     <>
       <header className="titlebar">
         <div>
-          <p>AI quota tracker</p>
+          <p>{t.common.tagline}</p>
           <h1>Quota Bar</h1>
         </div>
         <div className="toolbar">
-          <button className="icon-button" type="button" onClick={onRefresh} disabled={busy} aria-label="사용량 새로고침">
+          <button className="icon-button" type="button" onClick={onRefresh} disabled={busy} aria-label={t.overview.refreshAria}>
             <RefreshCw size={17} className={busy ? "spin" : ""} aria-hidden="true" />
           </button>
           <button
             ref={(element) => registerFocusTarget("settings-toolbar", element)}
             className="icon-button"
             type="button"
-            aria-label="설정 열기"
+            aria-label={t.overview.settingsAria}
             disabled={!snapshot}
             onClick={() => onOpenSettings("settings-toolbar")}
           >
             <Settings size={17} aria-hidden="true" />
           </button>
-          <button className="icon-button subtle" type="button" onClick={onQuit} aria-label="Quota Bar 종료">
+          <button className="icon-button subtle" type="button" onClick={onQuit} aria-label={t.overview.quitAria}>
             <Power size={17} aria-hidden="true" />
           </button>
         </div>
       </header>
 
-      <section className="screen-content overview-list" aria-label="AI 제공자 사용량">
+      <section className="screen-content overview-list" aria-label={t.overview.usageListAria}>
         {!snapshot && loadError ? (
           <div className="empty-state" role="alert">
-            <strong>사용량을 불러오지 못했습니다</strong>
+            <strong>{t.overview.loadErrorTitle}</strong>
             <p>{loadError}</p>
             <button className="secondary-button" type="button" disabled={busy} onClick={onRetry}>
-              다시 시도
+              {t.overview.retry}
             </button>
           </div>
         ) : !snapshot ? (
           <div className="empty-state" role="status">
             <span className="loading-dot" aria-hidden="true" />
-            <strong>사용량을 불러오는 중</strong>
-            <p>연결된 AI 도구를 확인하고 있습니다.</p>
+            <strong>{t.overview.loadingTitle}</strong>
+            <p>{t.overview.loadingBody}</p>
           </div>
         ) : usage.length ? usage.map((item) => (
           <ProviderCard
@@ -832,15 +810,15 @@ function Overview({
           />
         )) : (
           <div className="empty-state">
-            <strong>표시 중인 제공자가 없습니다</strong>
-            <p>설정에서 확인할 AI 제공자를 선택하세요.</p>
+            <strong>{t.overview.emptyTitle}</strong>
+            <p>{t.overview.emptyBody}</p>
             <button
               ref={(element) => registerFocusTarget("settings-empty", element)}
               className="secondary-button"
               type="button"
               onClick={() => onOpenSettings("settings-empty")}
             >
-              설정 열기
+              {t.overview.openSettings}
             </button>
           </div>
         )}
@@ -848,8 +826,8 @@ function Overview({
 
       {notice ? <p className="toast" role="status">{notice}</p> : null}
       <footer>
-        <span>{refreshIntervalLabel(snapshot?.settings.refreshIntervalMs)}</span>
-        <span>마지막 갱신 {formatTime(lastUpdated)}</span>
+        <span>{t.format.refreshIntervalLabel(snapshot?.settings.refreshIntervalMs)}</span>
+        <span>{t.format.lastUpdated(formatTime(lastUpdated, t.format.dateLocale))}</span>
       </footer>
     </>
   );
@@ -888,20 +866,21 @@ function ProviderDetail({
   onLogout: (provider: ProviderId) => Promise<void>;
   onOpenStatusPage: (provider: ProviderId) => void;
 }) {
-  const windows = providerWindows(usage);
+  const { t } = useI18n();
+  const windows = providerWindows(usage, t);
   const providerAlerts = snapshot.settings.notifications.providers[usage.provider];
 
   return (
     <>
       <header className="page-header">
-        <button ref={backButtonRef} className="icon-button back-button" type="button" onClick={onBack} aria-label="개요로 돌아가기">
+        <button ref={backButtonRef} className="icon-button back-button" type="button" onClick={onBack} aria-label={t.detail.backAria}>
           <ArrowLeft size={18} aria-hidden="true" />
         </button>
         <div className="page-title">
           <h1>{usage.label}</h1>
           <StatusBadge usage={usage} />
         </div>
-        <button className="icon-button" type="button" onClick={onRefresh} disabled={busy} aria-label={`${usage.label} 사용량 새로고침`}>
+        <button className="icon-button" type="button" onClick={onRefresh} disabled={busy} aria-label={t.detail.refreshAria(usage.label)}>
           <RefreshCw size={17} className={busy ? "spin" : ""} aria-hidden="true" />
         </button>
       </header>
@@ -923,10 +902,10 @@ function ProviderDetail({
         <section className="detail-card" aria-labelledby="limits-heading">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">현재 사용량</span>
-              <h2 id="limits-heading">기간별 한도</h2>
+              <span className="eyebrow">{t.detail.currentUsageEyebrow}</span>
+              <h2 id="limits-heading">{t.detail.limitsHeading}</h2>
             </div>
-            <small>{formatTime(usage.updatedAt)} 기준</small>
+            <small>{t.detail.asOf(formatTime(usage.updatedAt, t.format.dateLocale))}</small>
           </div>
           <div className="detail-windows">
             {windows.map((window) => <WindowMeter key={window.id} usage={usage} window={window} />)}
@@ -936,8 +915,8 @@ function ProviderDetail({
         <section className="detail-card" aria-labelledby="pace-heading">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">PACE</span>
-              <h2 id="pace-heading">소진 예상</h2>
+              <span className="eyebrow">{t.detail.paceEyebrow}</span>
+              <h2 id="pace-heading">{t.detail.paceHeading}</h2>
             </div>
             <UsageAnalysisHelp />
           </div>
@@ -947,11 +926,11 @@ function ProviderDetail({
         <section className="detail-card" aria-labelledby="history-heading">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">HISTORY</span>
-              <h2 id="history-heading">사용 이력</h2>
+              <span className="eyebrow">{t.detail.historyEyebrow}</span>
+              <h2 id="history-heading">{t.detail.historyHeading}</h2>
             </div>
-            <div className="history-range" aria-label="사용 이력 기간">
-              {(Object.keys(historyRangeLabels) as UsageHistoryRange[]).map((range) => (
+            <div className="history-range" aria-label={t.history.rangeAria}>
+              {(Object.keys(t.historyRange) as UsageHistoryRange[]).map((range) => (
                 <button
                   key={range}
                   type="button"
@@ -960,7 +939,7 @@ function ProviderDetail({
                   disabled={historyLoading}
                   onClick={() => onHistoryRangeChange(range)}
                 >
-                  {historyRangeLabels[range]}
+                  {t.historyRange[range]}
                 </button>
               ))}
             </div>
@@ -984,6 +963,8 @@ function ProviderDetail({
 function SettingsView({
   snapshot,
   launchAtLogin,
+  appVersion,
+  updateStatus,
   busy,
   notice,
   backButtonRef,
@@ -992,11 +973,17 @@ function SettingsView({
   onMenuBarModeChange,
   onRefreshIntervalChange,
   onLaunchAtLoginChange,
+  onThemeChange,
+  onLanguageChange,
   onNotificationsChange,
-  onCopyDiagnostics
+  onCopyDiagnostics,
+  onCheckForUpdates,
+  onInstallUpdate
 }: {
   snapshot: UsageSnapshot;
   launchAtLogin: boolean;
+  appVersion: string;
+  updateStatus: UpdateStatus;
   busy: boolean;
   notice: string;
   backButtonRef: React.RefObject<HTMLButtonElement>;
@@ -1005,9 +992,14 @@ function SettingsView({
   onMenuBarModeChange: (mode: "icons" | "iconsWithPercent") => void;
   onRefreshIntervalChange: (milliseconds: number) => void;
   onLaunchAtLoginChange: (enabled: boolean) => void;
+  onThemeChange: (theme: ThemeSetting) => void;
+  onLanguageChange: (language: LanguageSetting) => void;
   onNotificationsChange: (settings: NotificationSettings) => Promise<void>;
   onCopyDiagnostics: () => void;
+  onCheckForUpdates: () => void;
+  onInstallUpdate: () => void;
 }) {
+  const { t } = useI18n();
   const notifications = snapshot.settings.notifications;
 
   function updateQuietHours(patch: Partial<NotificationSettings["quietHours"]>) {
@@ -1020,11 +1012,11 @@ function SettingsView({
   return (
     <>
       <header className="page-header">
-        <button ref={backButtonRef} className="icon-button back-button" type="button" onClick={onBack} aria-label="개요로 돌아가기">
+        <button ref={backButtonRef} className="icon-button back-button" type="button" onClick={onBack} aria-label={t.settings.backAria}>
           <ArrowLeft size={18} aria-hidden="true" />
         </button>
         <div className="page-title">
-          <h1>설정</h1>
+          <h1>{t.settings.title}</h1>
         </div>
         <span className="header-spacer" aria-hidden="true" />
       </header>
@@ -1032,19 +1024,19 @@ function SettingsView({
       <div className="screen-content settings-content">
         <section className="settings-section" aria-labelledby="provider-settings-heading">
           <div className="settings-heading">
-            <span className="eyebrow">OVERVIEW</span>
-            <h2 id="provider-settings-heading">표시할 제공자</h2>
+            <span className="eyebrow">{t.settings.providersEyebrow}</span>
+            <h2 id="provider-settings-heading">{t.settings.providersHeading}</h2>
           </div>
           {PROVIDERS.map((provider) => (
             <div className="setting-row" key={provider.id}>
               <div>
                 <strong>{provider.label}</strong>
-                <small>개요와 트레이에 표시</small>
+                <small>{t.settings.providerVisibleHint}</small>
               </div>
               <Toggle
                 checked={snapshot.settings.providers[provider.id].visible}
                 disabled={busy}
-                label={`${provider.label} 표시`}
+                label={t.settings.providerVisibleAria(provider.label)}
                 onChange={(visible) => onVisibilityChange(provider.id, visible)}
               />
             </div>
@@ -1053,12 +1045,12 @@ function SettingsView({
 
         <section className="settings-section" aria-labelledby="display-settings-heading">
           <div className="settings-heading">
-            <span className="eyebrow">DISPLAY</span>
-            <h2 id="display-settings-heading">표시와 갱신</h2>
+            <span className="eyebrow">{t.settings.displayEyebrow}</span>
+            <h2 id="display-settings-heading">{t.settings.displayHeading}</h2>
           </div>
           <div className="setting-block">
-            <span className="setting-label">트레이 표시</span>
-            <div className="segmented two" aria-label="트레이 표시 방식">
+            <span className="setting-label">{t.settings.trayDisplayLabel}</span>
+            <div className="segmented two" aria-label={t.settings.trayDisplayAria}>
               <button
                 type="button"
                 className={snapshot.settings.menuBarDisplayMode === "icons" ? "active" : ""}
@@ -1066,7 +1058,7 @@ function SettingsView({
                 disabled={busy}
                 onClick={() => onMenuBarModeChange("icons")}
               >
-                아이콘
+                {t.settings.trayIcons}
               </button>
               <button
                 type="button"
@@ -1075,13 +1067,13 @@ function SettingsView({
                 disabled={busy}
                 onClick={() => onMenuBarModeChange("iconsWithPercent")}
               >
-                아이콘 + %
+                {t.settings.trayIconsPercent}
               </button>
             </div>
           </div>
           <div className="setting-block">
-            <span className="setting-label">자동 갱신</span>
-            <div className="segmented four" aria-label="자동 갱신 간격">
+            <span className="setting-label">{t.settings.refreshLabel}</span>
+            <div className="segmented four" aria-label={t.settings.refreshAria}>
               {[10, 30, 60, 300].map((seconds) => {
                 const value = seconds * 1_000;
                 const active = snapshot.settings.refreshIntervalMs === value;
@@ -1094,7 +1086,7 @@ function SettingsView({
                     disabled={busy}
                     onClick={() => onRefreshIntervalChange(value)}
                   >
-                    {seconds < 60 ? `${seconds}초` : `${seconds / 60}분`}
+                    {t.format.durationShort(seconds)}
                   </button>
                 );
               })}
@@ -1102,66 +1094,128 @@ function SettingsView({
           </div>
           <div className="setting-row borderless">
             <div>
-              <strong>로그인할 때 자동 실행</strong>
-              <small>컴퓨터를 켜면 Quota Bar 시작</small>
+              <strong>{t.settings.launchAtLoginTitle}</strong>
+              <small>{t.settings.launchAtLoginHint}</small>
             </div>
             <Toggle
               checked={launchAtLogin}
               disabled={busy}
-              label="로그인할 때 자동 실행"
+              label={t.settings.launchAtLoginTitle}
               onChange={onLaunchAtLoginChange}
             />
+          </div>
+        </section>
+
+        <section className="settings-section" aria-labelledby="appearance-settings-heading">
+          <div className="settings-heading">
+            <span className="eyebrow">{t.settings.appearanceEyebrow}</span>
+            <h2 id="appearance-settings-heading">{t.settings.appearanceHeading}</h2>
+          </div>
+          <div className="setting-block">
+            <span className="setting-label">{t.settings.themeLabel}</span>
+            <div className="segmented three" aria-label={t.settings.themeAria}>
+              <button
+                type="button"
+                className={snapshot.settings.theme === "light" ? "active" : ""}
+                aria-pressed={snapshot.settings.theme === "light"}
+                disabled={busy}
+                onClick={() => onThemeChange("light")}
+              >
+                {t.settings.themeLight}
+              </button>
+              <button
+                type="button"
+                className={snapshot.settings.theme === "dark" ? "active" : ""}
+                aria-pressed={snapshot.settings.theme === "dark"}
+                disabled={busy}
+                onClick={() => onThemeChange("dark")}
+              >
+                {t.settings.themeDark}
+              </button>
+              <button
+                type="button"
+                className={snapshot.settings.theme === "system" ? "active" : ""}
+                aria-pressed={snapshot.settings.theme === "system"}
+                disabled={busy}
+                onClick={() => onThemeChange("system")}
+              >
+                {t.settings.themeSystem}
+              </button>
+            </div>
+          </div>
+          <div className="setting-block">
+            <span className="setting-label">{t.settings.languageLabel}</span>
+            <div className="segmented two" aria-label={t.settings.languageAria}>
+              <button
+                type="button"
+                className={snapshot.settings.language === "ko" ? "active" : ""}
+                aria-pressed={snapshot.settings.language === "ko"}
+                disabled={busy}
+                onClick={() => onLanguageChange("ko")}
+              >
+                {t.settings.languageKorean}
+              </button>
+              <button
+                type="button"
+                className={snapshot.settings.language === "en" ? "active" : ""}
+                aria-pressed={snapshot.settings.language === "en"}
+                disabled={busy}
+                onClick={() => onLanguageChange("en")}
+              >
+                {t.settings.languageEnglish}
+              </button>
+            </div>
           </div>
         </section>
 
         <section className="settings-section" aria-labelledby="notification-settings-heading">
           <div className="settings-heading heading-with-control">
             <div>
-              <span className="eyebrow">NOTIFICATIONS</span>
-              <h2 id="notification-settings-heading">전체 알림</h2>
+              <span className="eyebrow">{t.settings.notificationsEyebrow}</span>
+              <h2 id="notification-settings-heading">{t.settings.notificationsHeading}</h2>
             </div>
             <Toggle
               checked={notifications.enabled}
               disabled={busy}
-              label="전체 알림"
+              label={t.settings.notificationsHeading}
               onChange={(enabled) => void onNotificationsChange({ ...notifications, enabled })}
             />
           </div>
           <div className="setting-row">
             <div>
-              <strong>알림 쿨다운</strong>
-              <small>같은 알림의 반복을 제한</small>
+              <strong>{t.settings.cooldownTitle}</strong>
+              <small>{t.settings.cooldownHint}</small>
             </div>
             <select
               value={notifications.cooldownMinutes}
               disabled={busy || !notifications.enabled}
-              aria-label="알림 쿨다운"
+              aria-label={t.settings.cooldownAria}
               onChange={(event) => void onNotificationsChange({ ...notifications, cooldownMinutes: Number(event.target.value) })}
             >
               {cooldownOptions.includes(notifications.cooldownMinutes) ? null : (
                 <option value={notifications.cooldownMinutes}>
-                  {notifications.cooldownMinutes}분 (사용자 지정)
+                  {t.settings.cooldownCustomOption(notifications.cooldownMinutes)}
                 </option>
               )}
-              {cooldownOptions.map((minutes) => <option key={minutes} value={minutes}>{minutes}분</option>)}
+              {cooldownOptions.map((minutes) => <option key={minutes} value={minutes}>{t.settings.cooldownOption(minutes)}</option>)}
             </select>
           </div>
           <div className="setting-row">
             <div>
-              <strong>방해 금지 시간</strong>
-              <small>해당 시간에는 알림을 보류</small>
+              <strong>{t.settings.quietHoursTitle}</strong>
+              <small>{t.settings.quietHoursHint}</small>
             </div>
             <Toggle
               checked={notifications.quietHours.enabled}
               disabled={busy || !notifications.enabled}
-              label="방해 금지 시간"
+              label={t.settings.quietHoursTitle}
               onChange={(enabled) => updateQuietHours({ enabled })}
             />
           </div>
           {notifications.quietHours.enabled ? (
-            <div className="time-range" aria-label="방해 금지 시간 범위">
+            <div className="time-range" aria-label={t.settings.quietHoursRangeAria}>
               <label>
-                시작
+                {t.settings.quietHoursStart}
                 <input
                   type="time"
                   value={notifications.quietHours.start}
@@ -1171,7 +1225,7 @@ function SettingsView({
               </label>
               <span aria-hidden="true">→</span>
               <label>
-                종료
+                {t.settings.quietHoursEnd}
                 <input
                   type="time"
                   value={notifications.quietHours.end}
@@ -1185,14 +1239,38 @@ function SettingsView({
 
         <section className="settings-section diagnostics-section" aria-labelledby="diagnostics-heading">
           <div className="settings-heading">
-            <span className="eyebrow">SUPPORT</span>
-            <h2 id="diagnostics-heading">진단 정보</h2>
+            <span className="eyebrow">{t.settings.supportEyebrow}</span>
+            <h2 id="diagnostics-heading">{t.settings.diagnosticsHeading}</h2>
           </div>
-          <p>토큰과 개인정보를 제외한 연결 상태를 복사합니다.</p>
+          <p>{t.settings.diagnosticsHint}</p>
           <button className="secondary-button full-button" type="button" disabled={busy} onClick={onCopyDiagnostics}>
             <Clipboard size={15} aria-hidden="true" />
-            진단 정보 복사
+            {t.settings.diagnosticsCopy}
           </button>
+        </section>
+
+        <section className="settings-section diagnostics-section" aria-labelledby="updates-heading">
+          <div className="settings-heading">
+            <span className="eyebrow">{t.updates.eyebrow}</span>
+            <h2 id="updates-heading">{t.updates.heading}</h2>
+          </div>
+          <p>{t.updates.currentVersion(appVersion)}{updateStatusText(t, updateStatus) ? ` · ${updateStatusText(t, updateStatus)}` : ""}</p>
+          {updateStatus.state === "downloaded" ? (
+            <button className="primary-button full-button" type="button" onClick={onInstallUpdate}>
+              <RefreshCw size={15} aria-hidden="true" />
+              {t.updates.restartAndInstall}
+            </button>
+          ) : (
+            <button
+              className="secondary-button full-button"
+              type="button"
+              disabled={busy || updateStatus.state === "checking" || updateStatus.state === "downloading"}
+              onClick={onCheckForUpdates}
+            >
+              <RefreshCw size={15} aria-hidden="true" />
+              {t.updates.check}
+            </button>
+          )}
         </section>
       </div>
 
@@ -1208,23 +1286,37 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [initialLoadError, setInitialLoadError] = useState("");
   const [launchAtLogin, setLaunchAtLoginState] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: "idle" });
   const [history, setHistory] = useState<Partial<Record<ProviderId, ProviderHistory>>>({});
   const [historyLoading, setHistoryLoading] = useState<ProviderId | null>(null);
   const [historyRange, setHistoryRange] = useState<UsageHistoryRange>("24h");
   const backButtonRef = useRef<HTMLButtonElement>(null);
   const returnFocusKeyRef = useRef<OverviewFocusKey | null>(null);
   const overviewFocusRefs = useRef<Partial<Record<OverviewFocusKey, HTMLButtonElement | null>>>({});
+  const lang: LanguageSetting = snapshot?.settings.language ?? "ko";
+  const t = useMemo(() => getTranslations(lang), [lang]);
+  const i18nValue = useMemo(() => ({ t, lang }), [t, lang]);
   const viewedUsage = view.kind === "provider"
     ? snapshot?.usage.find((item) => item.provider === view.provider)
     : undefined;
   const historyRevision = viewedUsage
     ? [
         viewedUsage.dataUpdatedAt ?? viewedUsage.freshness?.observedAt ?? "",
-        ...providerWindows(viewedUsage).map((window) =>
+        ...providerWindows(viewedUsage, t).map((window) =>
           `${window.id}:${window.dataUpdatedAt ?? ""}:${window.percent}:${window.resetsAt ?? ""}`
         )
       ].join("|")
     : "";
+
+  useEffect(() => {
+    const theme = snapshot?.settings.theme ?? "system";
+    if (theme === "system") {
+      delete document.documentElement.dataset.theme;
+    } else {
+      document.documentElement.dataset.theme = theme;
+    }
+  }, [snapshot?.settings.theme]);
 
   useEffect(() => {
     let active = true;
@@ -1241,7 +1333,7 @@ export default function App() {
         if (active) {
           setInitialLoadError(error instanceof Error && error.message
             ? error.message
-            : "사용량을 불러오지 못했습니다. 다시 시도해 주세요.");
+            : t.notices.initialLoadFailed);
         }
       });
     const unsubscribe = window.aiUsage.onUsageSnapshot(acceptSnapshot);
@@ -1254,7 +1346,13 @@ export default function App() {
   useEffect(() => {
     void window.aiUsage.getLaunchAtLogin()
       .then(setLaunchAtLoginState)
-      .catch(() => setNotice("자동 실행 상태를 확인하지 못했습니다."));
+      .catch(() => setNotice(t.notices.launchAtLoginCheckFailed));
+  }, []);
+
+  useEffect(() => {
+    void window.aiUsage.getAppVersion().then(setAppVersion).catch(() => undefined);
+    void window.aiUsage.getUpdateStatus().then(setUpdateStatus).catch(() => undefined);
+    return window.aiUsage.onUpdateStatus(setUpdateStatus);
   }, []);
 
   useEffect(() => {
@@ -1288,7 +1386,7 @@ export default function App() {
       })
       .catch(() => {
         if (active) {
-          setNotice("사용 기록을 불러오지 못했습니다.");
+          setNotice(t.notices.historyLoadFailed);
         }
       })
       .finally(() => {
@@ -1336,7 +1434,7 @@ export default function App() {
       setInitialLoadError("");
       return true;
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "요청을 완료하지 못했습니다.");
+      setNotice(error instanceof Error ? error.message : t.notices.genericRequestFailed);
       return false;
     } finally {
       setBusy(false);
@@ -1351,7 +1449,7 @@ export default function App() {
     } catch (error) {
       setInitialLoadError(error instanceof Error && error.message
         ? error.message
-        : "사용량을 불러오지 못했습니다. 다시 시도해 주세요.");
+        : t.notices.initialLoadFailed);
     } finally {
       setBusy(false);
     }
@@ -1385,7 +1483,7 @@ export default function App() {
   async function tokenLogin(payload: TokenLoginPayload) {
     if (await runSnapshot(() => window.aiUsage.tokenLogin(payload))) {
       const providerLabel = PROVIDERS.find((provider) => provider.id === payload.provider)?.label ?? payload.provider;
-      setNotice(`${providerLabel} 연결 정보가 저장되었습니다.`);
+      setNotice(t.notices.providerConnected(providerLabel));
     }
   }
 
@@ -1396,7 +1494,7 @@ export default function App() {
       setSnapshot(result.snapshot);
       setNotice(result.result.message);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "로그인을 완료하지 못했습니다.");
+      setNotice(error instanceof Error ? error.message : t.notices.loginFailed);
     } finally {
       setBusy(false);
     }
@@ -1404,7 +1502,7 @@ export default function App() {
 
   async function logout(provider: ProviderId) {
     if (await runSnapshot(() => window.aiUsage.logout(provider))) {
-      setNotice("저장된 연결 정보를 삭제했습니다.");
+      setNotice(t.notices.authRemoved);
     }
   }
 
@@ -1413,7 +1511,7 @@ export default function App() {
     try {
       setLaunchAtLoginState(await window.aiUsage.setLaunchAtLogin(enabled));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "자동 실행 설정을 변경하지 못했습니다.");
+      setNotice(error instanceof Error ? error.message : t.notices.launchAtLoginChangeFailed);
     } finally {
       setBusy(false);
     }
@@ -1440,81 +1538,101 @@ export default function App() {
     setBusy(true);
     try {
       const copied = await window.aiUsage.copyDiagnostics();
-      setNotice(copied ? "진단 정보를 클립보드에 복사했습니다." : "진단 정보를 복사하지 못했습니다.");
+      setNotice(copied ? t.notices.diagnosticsCopied : t.notices.diagnosticsCopyFailedResult);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "진단 정보를 복사하지 못했습니다.");
+      setNotice(error instanceof Error ? error.message : t.notices.diagnosticsCopyFailed);
     } finally {
       setBusy(false);
     }
   }
 
+  function checkForUpdates() {
+    void window.aiUsage.checkForUpdates();
+  }
+
+  function installUpdate() {
+    void window.aiUsage.quitAndInstallUpdate();
+  }
+
   function openStatusPage(provider: ProviderId) {
-    void window.aiUsage.openStatusPage(provider).catch(() => setNotice("상태 페이지를 열지 못했습니다."));
+    void window.aiUsage.openStatusPage(provider).catch(() => setNotice(t.notices.statusPageOpenFailed));
   }
 
   if (view.kind === "provider" && snapshot) {
     const usage = snapshot.usage.find((item) => item.provider === view.provider);
     if (usage) {
       return (
-        <main className="shell">
-          <ProviderDetail
-            usage={usage}
-            history={history[usage.provider]?.range === historyRange ? history[usage.provider] : undefined}
-            historyLoading={historyLoading === usage.provider}
-            historyRange={historyRange}
-            snapshot={snapshot}
-            busy={busy}
-            backButtonRef={backButtonRef}
-            onBack={goBack}
-            onRefresh={() => void runSnapshot(window.aiUsage.refreshUsage)}
-            onHistoryRangeChange={setHistoryRange}
-            onNotificationChange={(settings) => setProviderNotifications(usage.provider, settings)}
-            onTokenLogin={tokenLogin}
-            onOAuthLogin={oauthLogin}
-            onLogout={logout}
-            onOpenStatusPage={openStatusPage}
-          />
-          {notice ? <p className="toast" role="status">{notice}</p> : null}
-        </main>
+        <I18nContext.Provider value={i18nValue}>
+          <main className="shell">
+            <ProviderDetail
+              usage={usage}
+              history={history[usage.provider]?.range === historyRange ? history[usage.provider] : undefined}
+              historyLoading={historyLoading === usage.provider}
+              historyRange={historyRange}
+              snapshot={snapshot}
+              busy={busy}
+              backButtonRef={backButtonRef}
+              onBack={goBack}
+              onRefresh={() => void runSnapshot(window.aiUsage.refreshUsage)}
+              onHistoryRangeChange={setHistoryRange}
+              onNotificationChange={(settings) => setProviderNotifications(usage.provider, settings)}
+              onTokenLogin={tokenLogin}
+              onOAuthLogin={oauthLogin}
+              onLogout={logout}
+              onOpenStatusPage={openStatusPage}
+            />
+            {notice ? <p className="toast" role="status">{notice}</p> : null}
+          </main>
+        </I18nContext.Provider>
       );
     }
   }
 
   if (view.kind === "settings" && snapshot) {
     return (
-      <main className="shell">
-        <SettingsView
-          snapshot={snapshot}
-          launchAtLogin={launchAtLogin}
-          busy={busy}
-          notice={notice}
-          backButtonRef={backButtonRef}
-          onBack={goBack}
-          onVisibilityChange={(provider, visible) => void setVisibility(provider, visible)}
-          onMenuBarModeChange={(mode) => void runSnapshot(() => window.aiUsage.setMenuBarDisplayMode(mode))}
-          onRefreshIntervalChange={(milliseconds) => void runSnapshot(() => window.aiUsage.setRefreshIntervalMs(milliseconds))}
-          onLaunchAtLoginChange={(enabled) => void toggleLaunchAtLogin(enabled)}
-          onNotificationsChange={setNotifications}
-          onCopyDiagnostics={() => void copyDiagnostics()}
-        />
-      </main>
+      <I18nContext.Provider value={i18nValue}>
+        <main className="shell">
+          <SettingsView
+            snapshot={snapshot}
+            launchAtLogin={launchAtLogin}
+            appVersion={appVersion}
+            updateStatus={updateStatus}
+            busy={busy}
+            notice={notice}
+            backButtonRef={backButtonRef}
+            onBack={goBack}
+            onVisibilityChange={(provider, visible) => void setVisibility(provider, visible)}
+            onMenuBarModeChange={(mode) => void runSnapshot(() => window.aiUsage.setMenuBarDisplayMode(mode))}
+            onRefreshIntervalChange={(milliseconds) => void runSnapshot(() => window.aiUsage.setRefreshIntervalMs(milliseconds))}
+            onLaunchAtLoginChange={(enabled) => void toggleLaunchAtLogin(enabled)}
+            onThemeChange={(theme) => void runSnapshot(() => window.aiUsage.setTheme(theme))}
+            onLanguageChange={(language) => void runSnapshot(() => window.aiUsage.setLanguage(language))}
+            onNotificationsChange={setNotifications}
+            onCopyDiagnostics={() => void copyDiagnostics()}
+            onCheckForUpdates={checkForUpdates}
+            onInstallUpdate={installUpdate}
+          />
+        </main>
+      </I18nContext.Provider>
     );
   }
 
   return (
-    <main className="shell">
-      <Overview
-        snapshot={snapshot}
-        busy={busy}
-        notice={notice}
-        loadError={initialLoadError}
-        onRefresh={() => void runSnapshot(window.aiUsage.refreshUsage)}
-        onRetry={() => void retryInitialLoad()}
-        onOpenProvider={openProvider}
-        onOpenSettings={openSettings}
-        registerFocusTarget={registerFocusTarget}
-        onQuit={window.aiUsage.quit}
-      />
-    </main>
+    <I18nContext.Provider value={i18nValue}>
+      <main className="shell">
+        <Overview
+          snapshot={snapshot}
+          busy={busy}
+          notice={notice}
+          loadError={initialLoadError}
+          onRefresh={() => void runSnapshot(window.aiUsage.refreshUsage)}
+          onRetry={() => void retryInitialLoad()}
+          onOpenProvider={openProvider}
+          onOpenSettings={openSettings}
+          registerFocusTarget={registerFocusTarget}
+          onQuit={window.aiUsage.quit}
+        />
+      </main>
+    </I18nContext.Provider>
   );
 }

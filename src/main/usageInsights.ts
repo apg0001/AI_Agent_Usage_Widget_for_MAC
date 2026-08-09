@@ -25,7 +25,7 @@ function usageQuality(usage: ProviderUsage, window: UsageLimitWindow): UsageData
 }
 
 function isAvailable(window: UsageLimitWindow) {
-  return window.available !== false && window.quality !== "unavailable" && window.message !== "제공 안 됨";
+  return window.available !== false && window.quality !== "unavailable";
 }
 
 function sameResetEpoch(left?: string, right?: string) {

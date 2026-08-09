@@ -8,6 +8,7 @@ describe("로컬 세션 및 기간별 사용량 연결", () => {
     const macPlatform = readFileSync(resolve(process.cwd(), "src/main/platform/mac.ts"), "utf8");
     const platformIndex = readFileSync(resolve(process.cwd(), "src/main/platform/index.ts"), "utf8");
     const renderer = readFileSync(resolve(process.cwd(), "src/renderer/src/App.tsx"), "utf8");
+    const i18n = readFileSync(resolve(process.cwd(), "src/shared/i18n.ts"), "utf8");
 
     expect(usageProviders).toContain("https://chatgpt.com/backend-api/wham/usage");
     expect(usageProviders).toContain('".codex"');
@@ -25,9 +26,11 @@ describe("로컬 세션 및 기간별 사용량 연결", () => {
     expect(usageProviders).toContain('headers.get("retry-after")');
     expect(usageProviders).toContain("CLAUDE_MIN_REFRESH_MS");
     expect(renderer).toContain("connectionStatus");
-    expect(renderer).toContain("Google OAuth로 연결");
-    expect(renderer).toContain("기간별 한도");
+    expect(renderer).toContain("t.auth.googleOAuth");
+    expect(renderer).toContain("t.detail.limitsHeading");
     expect(renderer).toContain("detail-windows");
+    expect(i18n).toContain('googleOAuth: "Google OAuth로 연결"');
+    expect(i18n).toContain('limitsHeading: "기간별 한도"');
     expect(renderer).not.toContain("API로 연결됨");
     expect(renderer).not.toContain("Codex/Claude는 로컬 세션을 우선 감지하고");
     expect(renderer).not.toContain("Gemini 토큰");

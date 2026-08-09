@@ -117,7 +117,6 @@ describe("UsageNotificationDetector", () => {
       resetEpoch: Date.parse(RESET_AT),
       key: `claude:account-a:primary:${Date.parse(RESET_AT)}`
     });
-    expect(events[0]?.title).toContain("90%");
   });
 
   it("delivers a threshold that crossed during cooldown once cooldown expires", () => {

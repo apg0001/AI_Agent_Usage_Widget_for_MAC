@@ -42,8 +42,10 @@ describe("컴퓨터 켤 때 자동 실행", () => {
 
   it("렌더러에 자동 시작 토글이 있다", () => {
     const renderer = readFileSync(resolve(process.cwd(), "src/renderer/src/App.tsx"), "utf8");
+    const i18n = readFileSync(resolve(process.cwd(), "src/shared/i18n.ts"), "utf8");
 
-    expect(renderer).toContain("로그인할 때 자동 실행");
+    expect(renderer).toContain("t.settings.launchAtLoginTitle");
     expect(renderer).toContain("toggleLaunchAtLogin");
+    expect(i18n).toContain('launchAtLoginTitle: "로그인할 때 자동 실행"');
   });
 });

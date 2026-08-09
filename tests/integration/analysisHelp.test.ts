@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const appSource = readFileSync(resolve(process.cwd(), "src/renderer/src/App.tsx"), "utf8");
 const styles = readFileSync(resolve(process.cwd(), "src/renderer/src/styles.css"), "utf8");
 const readme = readFileSync(resolve(process.cwd(), "README.md"), "utf8");
+const i18n = readFileSync(resolve(process.cwd(), "src/shared/i18n.ts"), "utf8");
 
 function declarationsFor(selector: string) {
   const declarations = new Map<string, string>();
@@ -42,7 +43,7 @@ describe("사용량 분석 설명", () => {
 
   it("소진 예상 카드에서 접근 가능한 도움말 dialog를 연다", () => {
     expect(appSource).toMatch(/aria-labelledby="pace-heading"[\s\S]*?<UsageAnalysisHelp \/>[\s\S]*?<PaceSummary/);
-    expect(appSource).toContain('aria-label="사용량 분석 방식 보기"');
+    expect(appSource).toContain("aria-label={t.analysisHelp.triggerAria}");
     expect(appSource).toContain('aria-haspopup="dialog"');
     expect(appSource).toContain('id="usage-analysis-help"');
     expect(appSource).toContain('aria-labelledby="analysis-help-title"');
@@ -50,8 +51,10 @@ describe("사용량 분석 설명", () => {
     expect(appSource).toContain('window.addEventListener("blur", closeOnWindowBlur)');
     expect(appSource).toContain('document.querySelector("dialog:modal")');
     expect(appSource).toContain("onClose={() => triggerRef.current?.focus()}");
-    expect(appSource).toContain('aria-label="사용량 분석 설명"');
+    expect(appSource).toContain("aria-label={t.analysisHelp.bodyAria}");
     expect(appSource).toContain("tabIndex={0}");
+    expect(i18n).toContain('triggerAria: "사용량 분석 방식 보기"');
+    expect(i18n).toContain('bodyAria: "사용량 분석 설명"');
   });
 
   it("작은 트레이 창에서는 dialog 본문만 스크롤한다", () => {

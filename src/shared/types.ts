@@ -1,5 +1,9 @@
 export type ProviderId = "codex" | "claude" | "gemini";
 
+export type ThemeSetting = "light" | "dark" | "system";
+
+export type LanguageSetting = "ko" | "en";
+
 export type UsageDataQuality = "exact" | "estimated" | "unavailable";
 
 export type UsagePace = {
@@ -104,6 +108,8 @@ export type ProviderAuth = {
 export type AppSettings = {
   refreshIntervalMs: number;
   menuBarDisplayMode: "icons" | "iconsWithPercent";
+  theme: ThemeSetting;
+  language: LanguageSetting;
   notifications: NotificationSettings;
   providers: Record<ProviderId, ProviderSettings>;
 };
@@ -121,6 +127,8 @@ export type PublicProviderSettings = {
 export type PublicAppSettings = {
   refreshIntervalMs: number;
   menuBarDisplayMode: "icons" | "iconsWithPercent";
+  theme: ThemeSetting;
+  language: LanguageSetting;
   notifications: NotificationSettings;
   providers: Record<ProviderId, PublicProviderSettings>;
 };
@@ -158,6 +166,13 @@ export type OAuthLoginResult = {
   provider: ProviderId;
   status: "success" | "unsupported" | "missing-config" | "error";
   message: string;
+};
+
+export type UpdateStatus = {
+  state: "idle" | "checking" | "available" | "downloading" | "downloaded" | "not-available" | "error";
+  version?: string;
+  progressPercent?: number;
+  message?: string;
 };
 
 export const PROVIDERS: Array<{ id: ProviderId; label: string }> = [

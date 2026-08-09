@@ -107,7 +107,7 @@ describe("Electron 런타임 설정", () => {
 
     expect(main).toContain('["24h", "7d", "30d"].includes(range)');
     expect(main).toContain("getAllProviderServiceStatuses");
-    expect(main).toContain("serviceStatus: sharedServiceStatus(item.provider)");
+    expect(main).toContain("serviceStatus: sharedServiceStatus(item.provider, settings.language)");
     expect(main).toContain("notifyServiceStatusChanges(settings)");
     expect(main).toContain("https://status.openai.com/");
     expect(main).toContain("https://status.claude.com/");

@@ -3,11 +3,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   AppSettings,
+  LanguageSetting,
   NotificationSettings,
   PublicAppSettings,
   ProviderId,
   ProviderNotificationSettings,
-  PROVIDERS
+  PROVIDERS,
+  ThemeSetting
 } from "../shared/types.js";
 
 type StoreShape = {
@@ -39,6 +41,8 @@ export const defaultNotificationSettings: NotificationSettings = {
 const defaultSettings: AppSettings = {
   refreshIntervalMs: 10_000,
   menuBarDisplayMode: "icons",
+  theme: "system",
+  language: "ko",
   notifications: defaultNotificationSettings,
   providers: {
     codex: { visible: true },
@@ -135,9 +139,19 @@ function normalizeSettings(value: unknown): AppSettings {
   return {
     refreshIntervalMs,
     menuBarDisplayMode: raw.menuBarDisplayMode === "iconsWithPercent" ? "iconsWithPercent" : "icons",
+    theme: normalizeTheme(raw.theme),
+    language: normalizeLanguage(raw.language),
     notifications: normalizeNotificationSettings(raw.notifications),
     providers
   };
+}
+
+function normalizeTheme(value: unknown): ThemeSetting {
+  return value === "light" || value === "dark" || value === "system" ? value : defaultSettings.theme;
+}
+
+function normalizeLanguage(value: unknown): LanguageSetting {
+  return value === "ko" || value === "en" ? value : defaultSettings.language;
 }
 
 function getStorePath() {
@@ -174,6 +188,8 @@ export function toPublicSettings(settings: AppSettings): PublicAppSettings {
   return {
     refreshIntervalMs: settings.refreshIntervalMs,
     menuBarDisplayMode: settings.menuBarDisplayMode,
+    theme: settings.theme,
+    language: settings.language,
     notifications: normalizeNotificationSettings(settings.notifications),
     providers: {
       codex: {
@@ -217,6 +233,22 @@ export function setMenuBarDisplayMode(menuBarDisplayMode: AppSettings["menuBarDi
   return saveSettings({
     ...settings,
     menuBarDisplayMode
+  });
+}
+
+export function setTheme(theme: ThemeSetting): AppSettings {
+  const settings = getSettings();
+  return saveSettings({
+    ...settings,
+    theme
+  });
+}
+
+export function setLanguage(language: LanguageSetting): AppSettings {
+  const settings = getSettings();
+  return saveSettings({
+    ...settings,
+    language
   });
 }
 

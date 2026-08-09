@@ -39,8 +39,6 @@ export type UsageNotificationEvent = {
   threshold?: number;
   resetsAt?: string;
   estimatedExhaustedAt?: string;
-  title: string;
-  body: string;
   key: string;
 };
 
@@ -222,8 +220,6 @@ export class UsageNotificationDetector {
               windowLabel: metric.window.label,
               percent: metric.window.percent,
               resetsAt: metric.window.resetsAt,
-              title: `${metric.providerLabel} 사용량 초기화`,
-              body: `${metric.window.label} 사용률이 0%로 초기화되었습니다.`,
               key
             });
           }
@@ -281,10 +277,6 @@ export class UsageNotificationDetector {
               percent: metric.window.percent,
               threshold: highestThreshold,
               resetsAt: metric.window.resetsAt,
-              title: `${metric.providerLabel} ${metric.window.label} ${highestThreshold}%`,
-              body: `현재 사용률은 ${metric.window.percent}%입니다.${
-                metric.window.resetRemaining ? ` 초기화까지 ${metric.window.resetRemaining} 남았습니다.` : ""
-              }`,
               key
             });
             for (const threshold of eligiblePending) {
@@ -326,8 +318,6 @@ export class UsageNotificationDetector {
               percent: metric.window.percent,
               resetsAt: metric.window.resetsAt,
               estimatedExhaustedAt: exhaustionAt,
-              title: `${metric.providerLabel} 한도 소진 예상`,
-              body: `${metric.window.label} 한도가 초기화 전에 소진될 것으로 예상됩니다.`,
               key
             });
             currentState.projectedNotified = true;

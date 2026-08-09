@@ -4,12 +4,13 @@ import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, s
 import { homedir } from "node:os";
 import path from "node:path";
 import { platformAdapter } from "./platform/index.js";
+import { getTranslations, Language } from "../shared/i18n.js";
 import { AppSettings, ProviderAuth, ProviderId, ProviderUsage, PROVIDERS, UsageLimitWindow } from "../shared/types.js";
 
 type ProviderAdapter = {
   id: ProviderId;
   label: string;
-  fetchUsage: (auth?: ProviderAuth) => Promise<Omit<ProviderUsage, "provider" | "label" | "updatedAt">>;
+  fetchUsage: (auth: ProviderAuth | undefined, language: Language) => Promise<Omit<ProviderUsage, "provider" | "label" | "updatedAt">>;
 };
 
 type UsageWindowInput = {
@@ -39,9 +40,10 @@ const CLAUDE_REQUEST_TIMEOUT_MS = 15_000;
 class CodexUsageApiError extends Error {
   constructor(
     readonly status: number,
-    readonly retryAfterMs?: number
+    readonly retryAfterMs?: number,
+    language: Language = "ko"
   ) {
-    super(`Codex 사용량 API 오류: ${status}`);
+    super(getTranslations(language).usage.codexApiError(status));
     this.name = "CodexUsageApiError";
   }
 }
@@ -49,9 +51,10 @@ class CodexUsageApiError extends Error {
 class ClaudeUsageApiError extends Error {
   constructor(
     readonly status: number,
-    readonly retryAfterMs?: number
+    readonly retryAfterMs?: number,
+    language: Language = "ko"
   ) {
-    super(`Claude 사용량 API 오류: ${status}`);
+    super(getTranslations(language).usage.claudeApiError(status));
     this.name = "ClaudeUsageApiError";
   }
 }
@@ -108,7 +111,7 @@ function claudeConfigDirectory() {
   return configuredDirectory("CLAUDE_CONFIG_DIR", path.join(homedir(), ".claude"));
 }
 
-export function formatRemaining(resetsAt?: string) {
+export function formatRemaining(resetsAt?: string, language: Language = "ko") {
   if (!resetsAt) {
     return undefined;
   }
@@ -117,8 +120,9 @@ export function formatRemaining(resetsAt?: string) {
   if (Number.isNaN(diffMs)) {
     return undefined;
   }
+  const t = getTranslations(language);
   if (diffMs <= 0) {
-    return "초기화 중";
+    return t.usage.resettingNow;
   }
 
   const totalMinutes = Math.ceil(diffMs / 60_000);
@@ -127,18 +131,18 @@ export function formatRemaining(resetsAt?: string) {
   const minutes = totalMinutes % 60;
 
   if (days > 0) {
-    return `${days}일 ${hours}시간 ${minutes}분`;
+    return t.usage.daysHoursMinutes(days, hours, minutes);
   }
-  return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+  return hours > 0 ? t.usage.hoursMinutes(hours, minutes) : t.usage.minutesOnly(minutes);
 }
 
-function withReset<T extends Omit<ProviderUsage, "provider" | "label" | "updatedAt">>(usage: T): T {
+function withReset<T extends Omit<ProviderUsage, "provider" | "label" | "updatedAt">>(usage: T, language: Language): T {
   return {
     ...usage,
-    resetRemaining: usage.resetRemaining ?? formatRemaining(usage.resetsAt),
+    resetRemaining: usage.resetRemaining ?? formatRemaining(usage.resetsAt, language),
     windows: usage.windows?.map((window) => ({
       ...window,
-      resetRemaining: window.resetRemaining ?? formatRemaining(window.resetsAt)
+      resetRemaining: window.resetRemaining ?? formatRemaining(window.resetsAt, language)
     }))
   };
 }
@@ -159,54 +163,61 @@ function unixSecondsToIso(value?: number) {
   return typeof value === "number" ? new Date(value * 1000).toISOString() : undefined;
 }
 
-export function windowLabel(windowSeconds?: number, fallback = "한도") {
+export function windowLabel(windowSeconds?: number, fallback?: string, language: Language = "ko") {
+  const t = getTranslations(language);
+  const resolvedFallback = fallback ?? t.usage.limitFallback;
   if (!windowSeconds) {
-    return fallback;
+    return resolvedFallback;
   }
 
   if (windowSeconds >= 6 * 24 * 60 * 60) {
-    return "주간 한도";
+    return t.usage.weeklyLimit;
   }
   if (windowSeconds >= 24 * 60 * 60) {
-    return `${Math.round(windowSeconds / 86_400)}일 한도`;
+    return t.usage.dayLimit(Math.round(windowSeconds / 86_400));
   }
   if (windowSeconds >= 60 * 60) {
-    return `${Math.round(windowSeconds / 3_600)}시간 한도`;
+    return t.usage.hourLimit(Math.round(windowSeconds / 3_600));
   }
-  return `${Math.round(windowSeconds / 60)}분 한도`;
+  return t.usage.minuteLimit(Math.round(windowSeconds / 60));
 }
 
-function createWindow(input: UsageWindowInput): UsageLimitWindow {
+function createWindow(input: UsageWindowInput, language: Language): UsageLimitWindow {
   return {
     ...input,
     percent: clampPercent(input.percent),
     available: input.available ?? true,
     quality: input.quality ?? "exact",
-    resetRemaining: formatRemaining(input.resetsAt)
+    resetRemaining: formatRemaining(input.resetsAt, language)
   };
 }
 
-function createMissingWindow(id: "primary" | "weekly", label: string): UsageLimitWindow {
+function createMissingWindow(id: "primary" | "weekly", label: string, language: Language): UsageLimitWindow {
   return {
     id,
     label,
     percent: 0,
     available: false,
     quality: "unavailable",
-    message: "제공 안 됨"
+    message: getTranslations(language).usage.notProvided
   };
 }
 
-function ensureLimitWindows(windows: UsageLimitWindow[]): UsageLimitWindow[] {
+function isPrimaryWeeklyDuration(window?: UsageLimitWindow) {
+  return typeof window?.windowDurationMinutes === "number" && window.windowDurationMinutes >= 6 * 24 * 60;
+}
+
+function ensureLimitWindows(windows: UsageLimitWindow[], language: Language): UsageLimitWindow[] {
+  const t = getTranslations(language);
   const primary = windows.find((window) => window.id === "primary");
   const weekly = windows.find((window) => window.id === "weekly");
   if (!primary && !weekly) {
-    return [createMissingWindow("primary", "한도"), createMissingWindow("weekly", "주간 한도")];
+    return [createMissingWindow("primary", t.usage.limitFallback, language), createMissingWindow("weekly", t.usage.weeklyLimit, language)];
   }
-  if (primary?.label === "주간 한도" && !weekly) {
-    return [primary];
+  if (isPrimaryWeeklyDuration(primary) && !weekly) {
+    return [primary as UsageLimitWindow];
   }
-  return [primary ?? createMissingWindow("primary", "한도"), weekly ?? createMissingWindow("weekly", "주간 한도")];
+  return [primary ?? createMissingWindow("primary", t.usage.limitFallback, language), weekly ?? createMissingWindow("weekly", t.usage.weeklyLimit, language)];
 }
 
 function shouldCacheUsage(usage: UsageResult) {
@@ -236,7 +247,8 @@ function isUsageWindow(window: UsageLimitWindow | null): window is UsageLimitWin
   return Boolean(window);
 }
 
-function seededUsage(provider: ProviderId, credential?: string) {
+function seededUsage(provider: ProviderId, credential: string | undefined, language: Language) {
+  const t = getTranslations(language);
   if (!credential) {
     return {
       used: 0,
@@ -244,7 +256,7 @@ function seededUsage(provider: ProviderId, credential?: string) {
       unit: "requests" as const,
       percent: 0,
       status: "signed-out" as const,
-      message: provider === "claude" ? "Claude Code를 열고 /login을 먼저 실행하세요." : "로그인이 필요합니다."
+      message: provider === "claude" ? t.usage.claudeLoginHint : t.usage.signInRequired
     };
   }
 
@@ -268,31 +280,31 @@ function seededUsage(provider: ProviderId, credential?: string) {
     windows: provider === "gemini" ? [
       createWindow({
         id: "daily",
-        label: "오늘",
+        label: t.usage.today,
         percent: Math.max(0, percent - 12),
         resetsAt: nextLocalMidnight().toISOString(),
         quality: "estimated",
         windowDurationMinutes: 24 * 60,
-        message: "토큰 기반 추정"
-      })
+        message: t.usage.tokenEstimate
+      }, language)
     ] : [
       createWindow({
         id: "primary",
-        label: "5시간 한도",
+        label: t.usage.hourLimit(5),
         percent,
         resetsAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
         quality: "estimated",
         windowDurationMinutes: 5 * 60
-      }),
+      }, language),
       createWindow({
         id: "weekly",
-        label: "주간 한도",
+        label: t.usage.weeklyLimit,
         percent: Math.max(0, percent - 20),
         resetsAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
         quality: "estimated",
         windowDurationMinutes: 7 * 24 * 60,
-        message: "토큰 기반 추정"
-      })
+        message: t.usage.tokenEstimate
+      }, language)
     ]
   };
 }
@@ -337,7 +349,7 @@ function readFileTail(file: string, maxBytes = CODEX_SESSION_TAIL_BYTES) {
   return firstLineBreak >= 0 ? text.slice(firstLineBreak + 1) : "";
 }
 
-function readLatestCodexUsage() {
+function readLatestCodexUsage(language: Language) {
   const now = Date.now();
   if (now < codexLocalCache.nextScanAt) {
     return codexLocalCache.usage;
@@ -408,7 +420,8 @@ function readLatestCodexUsage() {
                 id: "primary",
                 label: windowLabel(
                   typeof primary.window_minutes === "number" ? primary.window_minutes * 60 : undefined,
-                  "한도"
+                  undefined,
+                  language
                 ),
                 percent: primary.used_percent,
                 dataUpdatedAt,
@@ -418,14 +431,15 @@ function readLatestCodexUsage() {
                   (typeof primary.resets_in_seconds === "number"
                     ? new Date(Date.now() + primary.resets_in_seconds * 1000).toISOString()
                     : undefined)
-              })
+              }, language)
             : null,
           secondary && typeof secondary.used_percent === "number"
             ? createWindow({
                 id: "weekly",
                 label: windowLabel(
                   typeof secondary.window_minutes === "number" ? secondary.window_minutes * 60 : undefined,
-                  "주간 한도"
+                  getTranslations(language).usage.weeklyLimit,
+                  language
                 ),
                 percent: secondary.used_percent,
                 dataUpdatedAt,
@@ -435,7 +449,7 @@ function readLatestCodexUsage() {
                   (typeof secondary.resets_in_seconds === "number"
                     ? new Date(Date.now() + secondary.resets_in_seconds * 1000).toISOString()
                     : undefined)
-              })
+              }, language)
             : null
         ].filter(isUsageWindow);
         const usage = withReset({
@@ -448,9 +462,9 @@ function readLatestCodexUsage() {
           source: "local" as const,
           connectionStatus: "connected" as const,
           dataUpdatedAt,
-          windows: ensureLimitWindows(windows),
+          windows: ensureLimitWindows(windows, language),
           message: rateLimit?.plan_type
-        });
+        }, language);
         codexLocalCache.usage = usage;
         return usage;
       } catch {
@@ -476,7 +490,7 @@ function readCodexAccessToken() {
   }
 }
 
-async function fetchCodexUsage(savedAccessToken?: string) {
+async function fetchCodexUsage(savedAccessToken: string | undefined, language: Language) {
   const accessToken = savedAccessToken ?? readCodexAccessToken();
   if (!accessToken) {
     return null;
@@ -491,7 +505,7 @@ async function fetchCodexUsage(savedAccessToken?: string) {
   });
 
   if (!response.ok) {
-    throw new CodexUsageApiError(response.status, parseRetryAfterMs(response.headers.get("retry-after")));
+    throw new CodexUsageApiError(response.status, parseRetryAfterMs(response.headers.get("retry-after")), language);
   }
 
   const data = (await response.json()) as {
@@ -511,32 +525,33 @@ async function fetchCodexUsage(savedAccessToken?: string) {
   const percent = clampPercent(mainWindow.used_percent);
   const resetsAt = unixSecondsToIso(mainWindow.reset_at);
   const dataUpdatedAt = new Date().toISOString();
+  const t = getTranslations(language);
   const windows = ensureLimitWindows([
     primary && typeof primary.used_percent === "number"
       ? createWindow({
           id: "primary",
-          label: windowLabel(primary.limit_window_seconds, "한도"),
+          label: windowLabel(primary.limit_window_seconds, t.usage.limitFallback, language),
           percent: primary.used_percent,
           dataUpdatedAt,
           windowDurationMinutes: typeof primary.limit_window_seconds === "number"
             ? primary.limit_window_seconds / 60
             : undefined,
           resetsAt: unixSecondsToIso(primary.reset_at)
-        })
+        }, language)
       : null,
     weekly && typeof weekly.used_percent === "number"
       ? createWindow({
           id: "weekly",
-          label: windowLabel(weekly.limit_window_seconds, "주간 한도"),
+          label: windowLabel(weekly.limit_window_seconds, t.usage.weeklyLimit, language),
           percent: weekly.used_percent,
           dataUpdatedAt,
           windowDurationMinutes: typeof weekly.limit_window_seconds === "number"
             ? weekly.limit_window_seconds / 60
             : undefined,
           resetsAt: unixSecondsToIso(weekly.reset_at)
-        })
+        }, language)
       : null
-  ].filter(isUsageWindow));
+  ].filter(isUsageWindow), language);
 
   return withReset({
     used: percent,
@@ -550,13 +565,14 @@ async function fetchCodexUsage(savedAccessToken?: string) {
     dataUpdatedAt,
     windows,
     message: data.plan_type
-  });
+  }, language);
 }
 
-function codexFailureUsage(error: Error, hasSession: boolean): UsageResult | null {
+function codexFailureUsage(error: Error, hasSession: boolean, language: Language): UsageResult | null {
   if (!hasSession) {
     return null;
   }
+  const t = getTranslations(language);
 
   const authExpired = error instanceof CodexUsageApiError && (error.status === 401 || error.status === 403);
   if (authExpired) {
@@ -569,13 +585,13 @@ function codexFailureUsage(error: Error, hasSession: boolean): UsageResult | nul
       status: "signed-out",
       source: "api",
       connectionStatus: "signed-out",
-      message: "Codex 로그인 세션이 만료되었습니다. codex login을 다시 실행하세요."
+      message: t.usage.codexSessionExpired
     };
   }
 
   const retryAt = new Date(codexNextAttemptAt).toISOString();
   const cached = readLastSuccessfulUsage("codex");
-  const message = `Codex 세션은 연결되어 있지만 사용량을 갱신하지 못했습니다. ${formatRemaining(retryAt) ?? "잠시"} 후 다시 시도합니다.`;
+  const message = t.usage.codexRetryMessage(formatRemaining(retryAt, language) ?? t.usage.shortly);
   return cached
     ? {
         ...cached,
@@ -607,7 +623,7 @@ function codexFailureUsage(error: Error, hasSession: boolean): UsageResult | nul
       };
 }
 
-async function fetchThrottledCodexUsage(savedAccessToken?: string): Promise<UsageResult | null> {
+async function fetchThrottledCodexUsage(savedAccessToken: string | undefined, language: Language): Promise<UsageResult | null> {
   const accessToken = savedAccessToken ?? readCodexAccessToken() ?? undefined;
   const fingerprint = accessToken ? createResetTrackingId(accessToken) : null;
   if (fingerprint !== codexSessionFingerprint) {
@@ -621,7 +637,7 @@ async function fetchThrottledCodexUsage(savedAccessToken?: string): Promise<Usag
     }
   }
 
-  const local = savedAccessToken ? null : readLatestCodexUsage();
+  const local = savedAccessToken ? null : readLatestCodexUsage(language);
   if (local) {
     codexLastError = null;
     return rememberUsage("codex", {
@@ -636,7 +652,7 @@ async function fetchThrottledCodexUsage(savedAccessToken?: string): Promise<Usag
   }
   if (Date.now() < codexNextAttemptAt) {
     if (codexLastError) {
-      return codexFailureUsage(codexLastError, hasSession);
+      return codexFailureUsage(codexLastError, hasSession, language);
     }
     return readLastSuccessfulUsage("codex");
   }
@@ -644,16 +660,16 @@ async function fetchThrottledCodexUsage(savedAccessToken?: string): Promise<Usag
   codexNextAttemptAt = Date.now() + CODEX_MIN_REFRESH_MS;
   codexInFlight = (async () => {
     try {
-      const usage = await fetchCodexUsage(accessToken);
+      const usage = await fetchCodexUsage(accessToken, language);
       codexLastError = null;
       return usage
         ? rememberUsage("codex", { ...usage, resetTrackingId: fingerprint ?? undefined })
         : null;
     } catch (error) {
-      codexLastError = error instanceof Error ? error : new Error("Codex 사용량을 불러오지 못했습니다.");
+      codexLastError = error instanceof Error ? error : new Error(getTranslations(language).usage.codexFetchFailedGeneric);
       const retryAfterMs = codexLastError instanceof CodexUsageApiError ? codexLastError.retryAfterMs : undefined;
       codexNextAttemptAt = Date.now() + Math.max(CODEX_MIN_REFRESH_MS, retryAfterMs ?? 0);
-      return codexFailureUsage(codexLastError, hasSession);
+      return codexFailureUsage(codexLastError, hasSession, language);
     } finally {
       codexInFlight = null;
     }
@@ -745,7 +761,7 @@ export function parseRetryAfterMs(value: string | null, now = Date.now()) {
   return Math.max(0, retryAt - now);
 }
 
-async function fetchClaudeUsage(accessToken: string): Promise<UsageResult> {
+async function fetchClaudeUsage(accessToken: string, language: Language): Promise<UsageResult> {
   const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
     signal: globalThis.AbortSignal.timeout(CLAUDE_REQUEST_TIMEOUT_MS),
     headers: {
@@ -759,7 +775,8 @@ async function fetchClaudeUsage(accessToken: string): Promise<UsageResult> {
   if (!response.ok) {
     throw new ClaudeUsageApiError(
       response.status,
-      parseRetryAfterMs(response.headers.get("retry-after"))
+      parseRetryAfterMs(response.headers.get("retry-after")),
+      language
     );
   }
 
@@ -769,9 +786,10 @@ async function fetchClaudeUsage(accessToken: string): Promise<UsageResult> {
   };
   const window = data.five_hour ?? data.seven_day;
   if (!window || typeof window.utilization !== "number") {
-    throw new Error("Claude 사용량 API 응답에 사용량 정보가 없습니다.");
+    throw new Error(getTranslations(language).usage.claudeApiNoUsageInfo);
   }
 
+  const t = getTranslations(language);
   const percent = Math.round(window.utilization);
   return withReset({
     used: percent,
@@ -787,26 +805,26 @@ async function fetchClaudeUsage(accessToken: string): Promise<UsageResult> {
       data.five_hour && typeof data.five_hour.utilization === "number"
         ? createWindow({
             id: "primary",
-            label: "5시간 한도",
+            label: t.usage.hourLimit(5),
             percent: data.five_hour.utilization,
             resetsAt: data.five_hour.resets_at,
             dataUpdatedAt: new Date().toISOString(),
             windowDurationMinutes: 5 * 60
-          })
+          }, language)
         : null,
       data.seven_day && typeof data.seven_day.utilization === "number"
         ? createWindow({
             id: "weekly",
-            label: "주간 한도",
+            label: t.usage.weeklyLimit,
             percent: data.seven_day.utilization,
             resetsAt: data.seven_day.resets_at,
             dataUpdatedAt: new Date().toISOString(),
             windowDurationMinutes: 7 * 24 * 60
-          })
+          }, language)
         : null
-    ].filter(isUsageWindow)),
+    ].filter(isUsageWindow), language),
     message: undefined
-  });
+  }, language);
 }
 
 function resetClaudeRequestState(
@@ -839,22 +857,23 @@ function claudeFailureDelay(error: Error, state: ClaudeRequestState) {
   return Math.max(CLAUDE_MIN_REFRESH_MS, exponentialBackoff, retryAfterMs ?? 0);
 }
 
-function claudeFailureMessage(error: Error, state: ClaudeRequestState) {
+function claudeFailureMessage(error: Error, state: ClaudeRequestState, language: Language) {
+  const t = getTranslations(language);
   if (error instanceof ClaudeUsageApiError && error.status === 401 && state.hasRefreshCredential) {
-    return "저장된 Claude Code 로그인은 확인했지만 액세스 토큰 갱신을 기다리는 중입니다. Claude Code가 갱신하면 자동으로 다시 연결됩니다.";
+    return t.usage.claudeWaitingRefresh;
   }
   if (error instanceof ClaudeUsageApiError && (error.status === 401 || error.status === 403)) {
-    return "Claude Code 로그인 세션이 만료되었습니다. Claude Code에서 다시 로그인하세요.";
+    return t.usage.claudeSessionExpired;
   }
 
   const retrySeconds = Math.max(1, Math.ceil((state.nextAttemptAt - Date.now()) / 1_000));
   if (error instanceof ClaudeUsageApiError && error.status === 429) {
-    return `Claude Code 세션은 연결되어 있지만 사용량 조회가 제한되었습니다. ${retrySeconds}초 후 다시 시도합니다.`;
+    return t.usage.claudeRateLimited(retrySeconds);
   }
-  return `Claude Code 세션은 연결되어 있지만 사용량을 불러오지 못했습니다. ${retrySeconds}초 후 다시 시도합니다.`;
+  return t.usage.claudeFetchFailed(retrySeconds);
 }
 
-function claudeFailureUsage(error: Error, state: ClaudeRequestState): UsageResult {
+function claudeFailureUsage(error: Error, state: ClaudeRequestState, language: Language): UsageResult {
   const authExpired = error instanceof ClaudeUsageApiError &&
     (error.status === 403 || (error.status === 401 && !state.hasRefreshCredential));
   return {
@@ -872,16 +891,16 @@ function claudeFailureUsage(error: Error, state: ClaudeRequestState): UsageResul
       staleReason: authExpired ? undefined : error.message
     },
     resetTrackingId: state.resetTrackingId ?? undefined,
-    message: claudeFailureMessage(error, state)
+    message: claudeFailureMessage(error, state, language)
   };
 }
 
-function claudeCachedOrFailure(error: Error, state: ClaudeRequestState) {
+function claudeCachedOrFailure(error: Error, state: ClaudeRequestState, language: Language) {
   const authExpired = error instanceof ClaudeUsageApiError &&
     (error.status === 403 || (error.status === 401 && !state.hasRefreshCredential));
   if (authExpired) {
     lastSuccessfulUsage.delete("claude");
-    return claudeFailureUsage(error, state);
+    return claudeFailureUsage(error, state, language);
   }
 
   const cached = readLastSuccessfulUsage("claude");
@@ -896,12 +915,12 @@ function claudeCachedOrFailure(error: Error, state: ClaudeRequestState) {
           retryAt: new Date(state.nextAttemptAt).toISOString(),
           staleReason: error.message
         },
-        message: claudeFailureMessage(error, state)
+        message: claudeFailureMessage(error, state, language)
       }
-    : claudeFailureUsage(error, state);
+    : claudeFailureUsage(error, state, language);
 }
 
-async function fetchThrottledClaudeUsage(session: ClaudeSession): Promise<UsageResult> {
+async function fetchThrottledClaudeUsage(session: ClaudeSession, language: Language): Promise<UsageResult> {
   const state = resetClaudeRequestState(
     session.accessToken,
     session.resetTrackingId,
@@ -915,9 +934,9 @@ async function fetchThrottledClaudeUsage(session: ClaudeSession): Promise<UsageR
   if (Date.now() < state.nextAttemptAt) {
     const cached = readLastSuccessfulUsage("claude");
     if (!state.lastError) {
-      return cached ?? claudeFailureUsage(new Error("Claude 사용량을 불러오는 중입니다."), state);
+      return cached ?? claudeFailureUsage(new Error(getTranslations(language).usage.claudeLoadingPlaceholder), state, language);
     }
-    return claudeCachedOrFailure(state.lastError, state);
+    return claudeCachedOrFailure(state.lastError, state, language);
   }
 
   const requestStartedAt = Date.now();
@@ -925,20 +944,20 @@ async function fetchThrottledClaudeUsage(session: ClaudeSession): Promise<UsageR
   const request = (async () => {
     try {
       const usage = {
-        ...(await fetchClaudeUsage(session.accessToken)),
+        ...(await fetchClaudeUsage(session.accessToken, language)),
         resetTrackingId: session.resetTrackingId
       };
       state.failureCount = 0;
       state.lastError = null;
       return claudeRequestState === state ? rememberUsage("claude", usage) : usage;
     } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error("Claude 사용량을 불러오지 못했습니다.");
+      const normalizedError = error instanceof Error ? error : new Error(getTranslations(language).usage.claudeFetchFailedGeneric);
       state.failureCount += 1;
       state.lastError = normalizedError;
       state.nextAttemptAt = Date.now() + claudeFailureDelay(normalizedError, state);
       return claudeRequestState === state
-        ? claudeCachedOrFailure(normalizedError, state)
-        : claudeFailureUsage(normalizedError, state);
+        ? claudeCachedOrFailure(normalizedError, state, language)
+        : claudeFailureUsage(normalizedError, state, language);
     } finally {
       state.inFlight = null;
     }
@@ -947,11 +966,12 @@ async function fetchThrottledClaudeUsage(session: ClaudeSession): Promise<UsageR
   return request;
 }
 
-function readGeminiLocalSession() {
+function readGeminiLocalSession(language: Language) {
   const credentialsPath = path.join(homedir(), ".gemini", "oauth_creds.json");
   if (!existsSync(credentialsPath)) {
     return null;
   }
+  const t = getTranslations(language);
 
   return withReset({
     used: 0,
@@ -964,19 +984,20 @@ function readGeminiLocalSession() {
     windows: [
       createWindow({
         id: "daily",
-        label: "오늘",
+        label: t.usage.today,
         percent: 0,
         resetsAt: nextLocalMidnight().toISOString(),
         available: false,
         quality: "unavailable",
-        message: "Gemini OAuth 세션 감지"
-      })
+        message: t.usage.geminiOAuthSessionDetected
+      }, language)
     ],
-    message: "Gemini 사용량 API 연결 대기"
-  });
+    message: t.usage.geminiApiPending
+  }, language);
 }
 
-function geminiOAuthUsage() {
+function geminiOAuthUsage(language: Language) {
+  const t = getTranslations(language);
   return withReset({
     used: 0,
     limit: 100,
@@ -988,27 +1009,27 @@ function geminiOAuthUsage() {
     windows: [
       createWindow({
         id: "daily",
-        label: "오늘",
+        label: t.usage.today,
         percent: 0,
         resetsAt: nextLocalMidnight().toISOString(),
         available: false,
         quality: "unavailable",
-        message: "Google OAuth 로그인"
-      })
+        message: t.usage.googleOAuthConnected
+      }, language)
     ],
-    message: "Gemini 사용량 API 연결 대기"
-  });
+    message: t.usage.geminiApiPending
+  }, language);
 }
 
 const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
   ...provider,
-  fetchUsage: async (auth?: ProviderAuth) => {
+  fetchUsage: async (auth: ProviderAuth | undefined, language: Language) => {
     const credential = auth?.accessToken;
     if (provider.id === "codex") {
       const codexUsage = isLocalProviderDetectionEnabled()
-        ? await fetchThrottledCodexUsage(credential)
+        ? await fetchThrottledCodexUsage(credential, language)
         : null;
-      return codexUsage ?? readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, credential);
+      return codexUsage ?? readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, credential, language);
     }
     if (provider.id === "claude") {
       const savedOAuthSession = auth?.type === "oauth" && credential
@@ -1022,49 +1043,51 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
       if (!session) {
         resetClaudeRequestState(null, null);
         return {
-          ...seededUsage(provider.id, undefined),
+          ...seededUsage(provider.id, undefined, language),
           connectionStatus: "signed-out" as const
         };
       }
-      return fetchThrottledClaudeUsage(session);
+      return fetchThrottledClaudeUsage(session, language);
     }
     if (provider.id === "gemini") {
       return (
-        (isLocalProviderDetectionEnabled() ? readGeminiLocalSession() : null) ??
-        (auth?.type === "oauth" ? geminiOAuthUsage() : seededUsage(provider.id, undefined))
+        (isLocalProviderDetectionEnabled() ? readGeminiLocalSession(language) : null) ??
+        (auth?.type === "oauth" ? geminiOAuthUsage(language) : seededUsage(provider.id, undefined, language))
       );
     }
-    return seededUsage(provider.id, credential);
+    return seededUsage(provider.id, credential, language);
   }
 }));
 
-function sourceInfo(result: UsageResult, providerLabel: string) {
+function sourceInfo(result: UsageResult, providerLabel: string, language: Language) {
+  const t = getTranslations(language);
   if (!result.source) {
     return undefined;
   }
   if (result.stale) {
-    return { label: `${providerLabel} 마지막 정상 데이터`, mode: "cache" as const };
+    return { label: t.usage.lastGoodData(providerLabel), mode: "cache" as const };
   }
   if (result.source === "local") {
-    return { label: `${providerLabel} 로컬 세션`, mode: "local" as const };
+    return { label: t.usage.localSession(providerLabel), mode: "local" as const };
   }
   if (result.source === "api") {
-    return { label: `${providerLabel} 사용량 API`, mode: "poll" as const };
+    return { label: t.usage.usageApi(providerLabel), mode: "poll" as const };
   }
   if (result.source === "token") {
-    return { label: "직접 입력 토큰 기반 추정", mode: "estimate" as const };
+    return { label: t.usage.tokenBasedEstimate, mode: "estimate" as const };
   }
-  return { label: "데모 데이터", mode: "estimate" as const };
+  return { label: t.usage.demoData, mode: "estimate" as const };
 }
 
 export async function fetchUsageSnapshot(settings: AppSettings): Promise<ProviderUsage[]> {
+  const language: Language = settings.language ?? "ko";
   const visibleAdapters = adapters.filter((adapter) => settings.providers[adapter.id].visible);
 
   return Promise.all(
     visibleAdapters.map(async (adapter) => {
       try {
         const providerSettings = settings.providers[adapter.id];
-        const result = await adapter.fetchUsage(providerSettings.auth);
+        const result = await adapter.fetchUsage(providerSettings.auth, language);
         const receivedAt = new Date().toISOString();
         const observedAt = result.dataUpdatedAt;
         return {
@@ -1072,7 +1095,7 @@ export async function fetchUsageSnapshot(settings: AppSettings): Promise<Provide
           label: adapter.label,
           updatedAt: receivedAt,
           ...result,
-          sourceInfo: result.sourceInfo ?? sourceInfo(result, adapter.label),
+          sourceInfo: result.sourceInfo ?? sourceInfo(result, adapter.label, language),
           freshness: {
             observedAt,
             receivedAt,
@@ -1095,7 +1118,7 @@ export async function fetchUsageSnapshot(settings: AppSettings): Promise<Provide
           percent: 0,
           status: "error",
           updatedAt: new Date().toISOString(),
-          message: error instanceof Error ? error.message : "사용량을 불러오지 못했습니다."
+          message: error instanceof Error ? error.message : getTranslations(language).usage.fetchFailedGeneric
         };
       }
     })

@@ -11,11 +11,13 @@ describe("앱 이름", () => {
     const renderer = readFileSync(resolve(process.cwd(), "src/renderer/src/App.tsx"), "utf8");
     const html = readFileSync(resolve(process.cwd(), "src/renderer/index.html"), "utf8");
     const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const i18n = readFileSync(resolve(process.cwd(), "src/shared/i18n.ts"), "utf8");
 
     expect(packageJson.name).toBe("quota-bar");
     expect(packageJson.build.productName).toBe("Quota Bar");
     expect(renderer).toContain("<h1>Quota Bar</h1>");
     expect(html).toContain("<title>Quota Bar</title>");
-    expect(main).toContain("Quota Bar 열기");
+    expect(main).toContain("t.main.trayOpen");
+    expect(i18n).toContain('trayOpen: "Quota Bar 열기"');
   });
 });

@@ -134,6 +134,36 @@ npm run package:linux
 - Linux Secret Service fallback은 후속 작업 대상입니다.
 - AppImage/deb 빌드 도구 체인은 배포판 환경에 따라 추가 패키지가 필요할 수 있습니다.
 
+## 릴리스와 자동 업데이트
+
+Quota Bar는 `electron-updater`로 GitHub Releases를 확인해 자동 업데이트합니다. 패키징된 앱(설치본)에서만 동작하며 `npm run dev`에서는 확인하지 않습니다.
+
+### 최초 1회 설정
+
+1. `electron-builder.env.example`을 복사해 `electron-builder.env`를 만들고 `GH_TOKEN`에 [Personal Access Token](https://github.com/settings/tokens)을 넣습니다(이 저장소에 대한 `repo` 스코프 또는 Contents: Read/write). 이 파일은 `.gitignore`에 포함되어 있어 커밋되지 않습니다.
+2. `electron-builder` CLI는 프로젝트 루트의 `electron-builder.env`를 자동으로 읽으므로(일반적인 `.env`가 아닙니다) 셸에 따로 환경변수를 export할 필요가 없습니다.
+
+### 버전 올리고 배포하기
+
+버전 번호는 자동으로 올라가지 않습니다 — 아래 명령을 릴리스할 때마다 직접 실행해야 합니다(문서에 적어두는 것만으로는 실행되지 않습니다).
+
+```bash
+npm version patch   # 0.2.1 -> 0.2.2 (package.json 수정 + git 커밋 + git 태그까지 자동 생성)
+npm run release:win # 컴파일 + 빌드 + GitHub Release 생성/업로드까지 한 번에
+```
+
+- `npm version`은 `patch`/`minor`/`major`를 지원하고, 기본적으로 git 커밋과 태그를 함께 만듭니다. 커밋/태그 없이 `package.json` 숫자만 올리고 싶으면 `npm version patch --no-git-tag-version`을 씁니다.
+- `release:win`(`release:mac`, `release:linux`)은 `electron-builder --publish always`를 실행해 빌드와 동시에 GitHub Release에 설치 파일과 `latest*.yml`을 업로드합니다.
+- `publish.releaseType`이 `"release"`로 설정돼 있어 릴리스가 즉시 공개되고, 실행 중인 이전 버전 앱이 곧바로 인식합니다. 정식 배포 전에 검토 단계를 두고 싶다면 `package.json`의 `build.publish.releaseType`을 `"draft"`로 바꾸고, GitHub Releases 화면에서 수동으로 "Publish release"를 눌러야 배포되게 할 수 있습니다.
+
+### 자동 업데이트 동작 확인
+
+1. 위 절차로 현재 버전을 릴리스하고 설치본을 설치·실행합니다.
+2. `npm version patch`로 버전을 올리고 다시 `release:win`을 실행합니다.
+3. 앱을 실행한 채로 몇 초~몇 분 기다리거나 설정 화면에서 "업데이트 확인"을 누르면 새 버전을 감지해 다운로드하고, 완료되면 "지금 재시작하고 설치" 버튼이 나타납니다.
+
+macOS는 서명되지 않은 앱은 Squirrel.Mac이 업데이트 설치를 거부하므로, Apple Developer 인증서로 서명하기 전까지는 macOS 자동 업데이트가 동작하지 않습니다.
+
 ## dist 정리 기준
 
 최신 macOS 배포용으로 남기는 파일:

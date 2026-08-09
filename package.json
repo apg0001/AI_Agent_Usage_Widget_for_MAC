@@ -12,6 +12,9 @@
     "package:mac": "npm run compile && electron-builder --mac",
     "package:win": "npm run compile && electron-builder --win",
     "package:linux": "npm run compile && electron-builder --linux",
+    "release:mac": "npm run compile && electron-builder --mac --publish always",
+    "release:win": "npm run compile && electron-builder --win --publish always",
+    "release:linux": "npm run compile && electron-builder --linux --publish always",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "npm run test:unit && npm run test:integration",
@@ -29,8 +32,13 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC.git"
+  },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -58,6 +66,12 @@
       "dist/renderer/**/*",
       "package.json"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "apg0001",
+      "repo": "AI_Agent_Usage_Widget_for_MAC",
+      "releaseType": "release"
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "build/icon.png",

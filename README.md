@@ -83,6 +83,10 @@ npm run dev
 
 빌드 전에 저장소를 정리된 상태로 검증하고 싶다면 `npm run verify`를 실행하세요(타입 체크, 린트, 테스트, 빌드를 순서대로 실행합니다). 더 자세한 절차와 문제 해결은 [HARNESS.md](HARNESS.md)를 참고하세요.
 
+## 수정 제안
+
+고치고 싶은 부분이나 추가하고 싶은 기능이 있다면 [이슈](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/issues)로 알려주시거나 PR로 보내주세요. PR을 보낼 때는 [CONTRIBUTING.md](CONTRIBUTING.md)의 브랜치·커밋 규칙을 참고해 주세요.
+
 ## 더 읽어보기
 
 - [FEATURES.md](FEATURES.md) — 로그인/사용량 감지가 내부적으로 어떻게 동작하는지

@@ -88,7 +88,7 @@ function sourceQuality(usage: ProviderUsage): UsageDataQuality {
 }
 
 function isWindowAvailable(window: UsageLimitWindow) {
-  return window.available !== false && window.quality !== "unavailable" && window.message !== "제공 안 됨";
+  return window.available !== false && window.quality !== "unavailable";
 }
 
 function observedAtFor(usage: ProviderUsage, window?: UsageLimitWindow) {
