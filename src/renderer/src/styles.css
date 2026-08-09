@@ -353,6 +353,7 @@ footer {
 .settings-content {
   display: grid;
   align-content: start;
+  grid-auto-rows: max-content;
   gap: 10px;
   padding-right: 2px;
 }
@@ -981,10 +982,6 @@ footer {
   stroke-linejoin: round;
   stroke-width: 2.25;
   vector-effect: non-scaling-stroke;
-}
-
-.disclosure-card {
-  overflow: hidden;
 }
 
 .disclosure-summary {
