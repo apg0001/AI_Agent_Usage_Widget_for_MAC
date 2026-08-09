@@ -18,6 +18,9 @@ A tray widget that shows your Codex, Claude, and Gemini usage right from the mac
 - 30 days of local usage history kept separate from credentials, and diagnostics you can copy without exposing personal data
 - Per-provider sign-in/sign-out
 - Optional launch at login (only supported in the installed app, not in `npm run dev`)
+- Light/dark/system theme, selectable in Settings
+- Korean/English language, selectable in Settings — covers the whole UI, including the tray menu, notifications, and per-provider status/error messages
+- Auto-update on Windows/Linux via GitHub Releases (with a manual "Check for updates" button in Settings > Updates). macOS doesn't support auto-update yet, pending code signing/notarization
 
 ## How usage analysis works
 
@@ -64,7 +67,9 @@ Sign-in state is re-detected from each CLI's saved session, so it persists acros
 
 ## Install and run
 
-There isn't a separately distributed installer yet, so you'll need to clone the repo and run or build it yourself.
+Grab the installer for your OS from the [Releases page](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/releases/latest) and install it directly (Windows: `Quota Bar Setup *.exe`, or the portable `Quota Bar *.exe`). On Windows/Linux, the app checks for and offers new versions automatically from Settings > Updates after install.
+
+To run or build it yourself instead, clone the repo and start it in dev mode.
 
 ```bash
 git clone https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC.git

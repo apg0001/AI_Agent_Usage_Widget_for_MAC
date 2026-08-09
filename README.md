@@ -18,6 +18,9 @@ macOS 메뉴바, Windows 시스템 트레이, Linux 상단바에서 Codex, Claud
 - 인증정보와 분리된 30일 로컬 사용 이력, 개인정보를 제외한 진단 정보 복사
 - 제공자별 로그인/로그아웃
 - 컴퓨터 켤 때 자동 실행 옵션(설치된 앱에서만 지원, `npm run dev` 개발 실행에서는 동작하지 않음)
+- 설정에서 라이트/다크/시스템 테마 선택
+- 설정에서 한국어/English 선택 — 트레이 메뉴, 알림, 제공자 상태·에러 메시지까지 전체 UI가 언어를 따라감
+- Windows/Linux는 GitHub Releases 기반 자동 업데이트 지원(설정 > 업데이트에서 수동 확인도 가능). macOS는 코드사이닝/공증 전까지 자동 업데이트를 지원하지 않음
 
 ## 사용량 분석 방식
 
@@ -64,7 +67,9 @@ Quota Bar는 토큰이나 요청 수를 자체적으로 세지 않습니다. 로
 
 ## 설치 및 실행
 
-아직 별도로 배포되는 설치 파일은 없어서, 저장소를 받아 직접 실행하거나 빌드해야 합니다.
+[Releases 페이지](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/releases/latest)에서 운영체제에 맞는 설치 파일을 받아 바로 설치할 수 있습니다(Windows: `Quota Bar Setup *.exe` 또는 portable `Quota Bar *.exe`). Windows/Linux는 설치 후 설정 > 업데이트에서 새 버전을 자동으로 안내합니다.
+
+직접 실행하거나 빌드하고 싶다면 저장소를 받아 개발 모드로 실행할 수 있습니다.
 
 ```bash
 git clone https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC.git
