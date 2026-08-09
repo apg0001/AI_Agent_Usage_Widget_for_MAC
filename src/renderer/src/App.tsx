@@ -1273,29 +1273,31 @@ function SettingsView({
           </button>
         </section>
 
-        <section className="settings-section diagnostics-section" aria-labelledby="updates-heading">
-          <div className="settings-heading">
-            <span className="eyebrow">{t.updates.eyebrow}</span>
-            <h2 id="updates-heading">{t.updates.heading}</h2>
-          </div>
-          <p>{t.updates.currentVersion(appVersion)}{updateStatusText(t, updateStatus) ? ` · ${updateStatusText(t, updateStatus)}` : ""}</p>
-          {updateStatus.state === "downloaded" ? (
-            <button className="primary-button full-button" type="button" onClick={onInstallUpdate}>
-              <RefreshCw size={15} aria-hidden="true" />
-              {t.updates.restartAndInstall}
-            </button>
-          ) : (
-            <button
-              className="secondary-button full-button"
-              type="button"
-              disabled={busy || updateStatus.state === "checking" || updateStatus.state === "downloading"}
-              onClick={onCheckForUpdates}
-            >
-              <RefreshCw size={15} aria-hidden="true" />
-              {t.updates.check}
-            </button>
-          )}
-        </section>
+        {window.aiUsage.platform === "darwin" ? null : (
+          <section className="settings-section diagnostics-section" aria-labelledby="updates-heading">
+            <div className="settings-heading">
+              <span className="eyebrow">{t.updates.eyebrow}</span>
+              <h2 id="updates-heading">{t.updates.heading}</h2>
+            </div>
+            <p>{t.updates.currentVersion(appVersion)}{updateStatusText(t, updateStatus) ? ` · ${updateStatusText(t, updateStatus)}` : ""}</p>
+            {updateStatus.state === "downloaded" ? (
+              <button className="primary-button full-button" type="button" onClick={onInstallUpdate}>
+                <RefreshCw size={15} aria-hidden="true" />
+                {t.updates.restartAndInstall}
+              </button>
+            ) : (
+              <button
+                className="secondary-button full-button"
+                type="button"
+                disabled={busy || updateStatus.state === "checking" || updateStatus.state === "downloading"}
+                onClick={onCheckForUpdates}
+              >
+                <RefreshCw size={15} aria-hidden="true" />
+                {t.updates.check}
+              </button>
+            )}
+          </section>
+        )}
       </div>
 
       {notice ? <p className="toast" role="status">{notice}</p> : null}

@@ -12,6 +12,7 @@ import {
 } from "../shared/types.js";
 
 const api = {
+  platform: process.platform,
   getUsage: () => ipcRenderer.invoke("usage:get") as Promise<UsageSnapshot>,
   refreshUsage: () => ipcRenderer.invoke("usage:refresh") as Promise<UsageSnapshot>,
   setProviderVisibility: (provider: ProviderId, visible: boolean) =>
