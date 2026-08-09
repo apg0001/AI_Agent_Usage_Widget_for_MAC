@@ -1,5 +1,7 @@
 # Quota Bar
 
+*한국어 | [English](README.en.md)*
+
 macOS 메뉴바, Windows 시스템 트레이, Linux 상단바에서 Codex, Claude, Gemini 사용량을 바로 확인할 수 있는 트레이 위젯입니다.
 
 ![Quota Bar 실행 화면](docs/screenshot.png)
