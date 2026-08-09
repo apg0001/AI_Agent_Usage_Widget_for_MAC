@@ -127,6 +127,16 @@ function createWindow() {
     }
   });
 
+  window.webContents.on("before-input-event", (_event, input) => {
+    const isDevToolsShortcut = input.type === "keyDown" && (
+      input.key === "F12" ||
+      (input.control && input.shift && (input.key === "I" || input.key === "i"))
+    );
+    if (isDevToolsShortcut) {
+      window?.webContents.toggleDevTools();
+    }
+  });
+
   window.webContents.once("did-finish-load", () => {
     if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH && !window?.isVisible()) {
       showWindow();
