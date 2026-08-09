@@ -8,14 +8,19 @@ import {
   ExternalLink,
   KeyRound,
   LogOut,
+  Plus,
   Power,
   RefreshCw,
+  RotateCcw,
   Settings,
+  Trash2,
   X
 } from "lucide-react";
 import { createContext, FormEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
+  DEFAULT_METER_COLOR_BANDS,
   LanguageSetting,
+  MeterColorBand,
   NotificationSettings,
   ProviderHistory,
   ProviderId,
@@ -41,14 +46,52 @@ type View =
 type OverviewFocusKey = `provider:${ProviderId}` | "settings-toolbar" | "settings-empty";
 
 const cooldownOptions = [5, 15, 30, 60];
+const MAX_METER_COLOR_BANDS = 8;
 
-const I18nContext = createContext<{ t: Translations; lang: LanguageSetting }>({
+const I18nContext = createContext<{ t: Translations; lang: LanguageSetting; bands: MeterColorBand[] }>({
   t: getTranslations("ko"),
-  lang: "ko"
+  lang: "ko",
+  bands: DEFAULT_METER_COLOR_BANDS
 });
 
 function useI18n() {
   return useContext(I18nContext);
+}
+
+function colorForPercent(percent: number, bands: MeterColorBand[]): string {
+  const sorted = [...bands].sort((a, b) => a.upTo - b.upTo);
+  const match = sorted.find((band) => percent <= band.upTo);
+  return (match ?? sorted[sorted.length - 1] ?? DEFAULT_METER_COLOR_BANDS[DEFAULT_METER_COLOR_BANDS.length - 1]).color;
+}
+
+function addColorBand(bands: MeterColorBand[]): MeterColorBand[] {
+  if (bands.length >= MAX_METER_COLOR_BANDS) {
+    return bands;
+  }
+  const sorted = [...bands].sort((a, b) => a.upTo - b.upTo);
+  let previousUpTo = 0;
+  let gapIndex = 0;
+  let gapSize = -1;
+  sorted.forEach((band, index) => {
+    const gap = band.upTo - previousUpTo;
+    if (gap > gapSize) {
+      gapSize = gap;
+      gapIndex = index;
+    }
+    previousUpTo = band.upTo;
+  });
+  const lowerBound = gapIndex === 0 ? 0 : sorted[gapIndex - 1].upTo;
+  const upperBound = sorted[gapIndex].upTo;
+  const midpoint = Math.min(Math.max(Math.round((lowerBound + upperBound) / 2), lowerBound + 1), upperBound);
+  const palette = ["#8b5cf6", "#14b8a6", "#ec4899", "#84cc16", "#0ea5e9"];
+  const newBand: MeterColorBand = {
+    id: `band-${Date.now()}`,
+    upTo: midpoint,
+    color: palette[bands.length % palette.length]
+  };
+  const next = [...sorted, newBand].sort((a, b) => a.upTo - b.upTo);
+  next[next.length - 1] = { ...next[next.length - 1], upTo: 100 };
+  return next;
 }
 
 function formatTime(value: string | undefined, locale: string) {
@@ -126,17 +169,11 @@ function windowIsAvailable(window: UsageLimitWindow) {
   return window.available !== false && window.quality !== "unavailable";
 }
 
-function meterTone(percent: number, status?: ProviderUsage["status"]) {
+function meterColor(percent: number, status: ProviderUsage["status"] | undefined, bands: MeterColorBand[]) {
   if (status === "signed-out" || status === "error") {
-    return "muted";
+    return "var(--status-muted)";
   }
-  if (percent >= 90) {
-    return "critical";
-  }
-  if (percent >= 75) {
-    return "warning";
-  }
-  return "ok";
+  return colorForPercent(percent, bands);
 }
 
 function getWindowElapsedPercent(window: UsageLimitWindow) {
@@ -287,7 +324,7 @@ function UsageAnalysisHelp() {
 }
 
 function WindowMeter({ usage, window, compact = false }: { usage: ProviderUsage; window: UsageLimitWindow; compact?: boolean }) {
-  const { t } = useI18n();
+  const { t, bands } = useI18n();
   const available = windowIsAvailable(window);
   const percent = available ? Math.min(100, Math.max(0, Math.round(window.percent))) : 0;
   const description = window.message ?? (window.resetRemaining ? t.format.resetUntil(window.resetRemaining) : t.format.noResetTime);
@@ -312,7 +349,7 @@ function WindowMeter({ usage, window, compact = false }: { usage: ProviderUsage;
           ? t.provider.windowUsageValueText(percent, roundedElapsedPercent)
           : t.provider.windowUnavailable}
       >
-        <span className={`meter-fill ${meterTone(percent, usage.status)}`} style={{ width: `${percent}%` }} />
+        <span className="meter-fill" style={{ width: `${percent}%`, background: meterColor(percent, usage.status, bands) }} />
         {markerPosition === undefined ? null : (
           <span className="period-marker" style={{ left: `${markerPosition}%` }} aria-hidden="true" />
         )}
@@ -445,12 +482,13 @@ function ProviderCard({
   buttonRef: (element: HTMLButtonElement | null) => void;
   onOpen: (provider: ProviderId) => void;
 }) {
-  const { t } = useI18n();
+  const { t, bands } = useI18n();
   const windows = providerWindows(usage, t).slice(0, 2);
   const shortMessage = usage.status === "signed-out" || usage.status === "error" || usage.stale ? usage.message : undefined;
+  const stripeStyle = { "--stripe-color": meterColor(usage.percent, usage.status, bands) } as React.CSSProperties;
 
   return (
-    <article className={`provider-card provider-${usage.status}`}>
+    <article className={`provider-card provider-${usage.status}`} style={stripeStyle}>
       <div className="provider-card-heading">
         <div className="provider-title">
           <h2>{usage.label}</h2>
@@ -999,6 +1037,7 @@ function SettingsView({
   onLaunchAtLoginChange,
   onThemeChange,
   onLanguageChange,
+  onMeterColorBandsChange,
   onNotificationsChange,
   onCopyDiagnostics,
   onCheckForUpdates,
@@ -1018,12 +1057,38 @@ function SettingsView({
   onLaunchAtLoginChange: (enabled: boolean) => void;
   onThemeChange: (theme: ThemeSetting) => void;
   onLanguageChange: (language: LanguageSetting) => void;
+  onMeterColorBandsChange: (bands: MeterColorBand[]) => void;
   onNotificationsChange: (settings: NotificationSettings) => Promise<void>;
   onCopyDiagnostics: () => void;
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, bands } = useI18n();
+  const sortedBands = [...bands].sort((a, b) => a.upTo - b.upTo);
+
+  function updateBandColor(id: string, color: string) {
+    onMeterColorBandsChange(bands.map((band) => (band.id === id ? { ...band, color } : band)));
+  }
+
+  function updateBandUpTo(id: string, upTo: number) {
+    onMeterColorBandsChange(bands.map((band) => (band.id === id ? { ...band, upTo } : band)));
+  }
+
+  function removeBand(id: string) {
+    if (bands.length <= 1) {
+      return;
+    }
+    onMeterColorBandsChange(bands.filter((band) => band.id !== id));
+  }
+
+  function addBandRow() {
+    onMeterColorBandsChange(addColorBand(bands));
+  }
+
+  function resetBands() {
+    onMeterColorBandsChange(DEFAULT_METER_COLOR_BANDS.map((band) => ({ ...band })));
+  }
+
   const notifications = snapshot.settings.notifications;
 
   function updateQuietHours(patch: Partial<NotificationSettings["quietHours"]>) {
@@ -1192,6 +1257,75 @@ function SettingsView({
           </div>
         </section>
 
+        <section className="settings-section" aria-labelledby="colors-settings-heading">
+          <div className="settings-heading">
+            <span className="eyebrow">{t.colors.eyebrow}</span>
+            <h2 id="colors-settings-heading">{t.colors.heading}</h2>
+          </div>
+          <p className="supporting-text">{t.colors.hint}</p>
+          <div className="color-band-list">
+            {sortedBands.map((band, index) => {
+              const isLast = index === sortedBands.length - 1;
+              return (
+                <div className="color-band-row" key={band.id}>
+                  <input
+                    type="color"
+                    className="color-band-swatch"
+                    value={band.color}
+                    disabled={busy}
+                    aria-label={t.colors.bandColorAria(band.upTo)}
+                    onChange={(event) => updateBandColor(band.id, event.target.value)}
+                  />
+                  {isLast ? (
+                    <span className="color-band-final">{t.colors.finalBandLabel}</span>
+                  ) : (
+                    <span className="color-band-upto">
+                      {t.colors.bandUpToLabel}
+                      <input
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={band.upTo}
+                        disabled={busy}
+                        aria-label={t.colors.bandUpToAria(index + 1)}
+                        onChange={(event) => updateBandUpTo(band.id, Number(event.target.value))}
+                      />
+                      %
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-button subtle"
+                    disabled={busy || bands.length <= 1}
+                    aria-label={t.colors.bandRemoveAria(index + 1)}
+                    onClick={() => removeBand(band.id)}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="color-band-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy || bands.length >= MAX_METER_COLOR_BANDS}
+              onClick={addBandRow}
+            >
+              <Plus size={14} aria-hidden="true" />
+              {t.colors.add}
+            </button>
+            <button type="button" className="secondary-button" disabled={busy} onClick={resetBands}>
+              <RotateCcw size={14} aria-hidden="true" />
+              {t.colors.reset}
+            </button>
+          </div>
+          {bands.length >= MAX_METER_COLOR_BANDS ? (
+            <p className="inline-note">{t.colors.maxBandsNote(MAX_METER_COLOR_BANDS)}</p>
+          ) : null}
+        </section>
+
         <section className="settings-section" aria-labelledby="notification-settings-heading">
           <div className="settings-heading heading-with-control">
             <div>
@@ -1322,7 +1456,8 @@ export default function App() {
   const overviewFocusRefs = useRef<Partial<Record<OverviewFocusKey, HTMLButtonElement | null>>>({});
   const lang: LanguageSetting = snapshot?.settings.language ?? "ko";
   const t = useMemo(() => getTranslations(lang), [lang]);
-  const i18nValue = useMemo(() => ({ t, lang }), [t, lang]);
+  const bands = snapshot?.settings.meterColorBands ?? DEFAULT_METER_COLOR_BANDS;
+  const i18nValue = useMemo(() => ({ t, lang, bands }), [t, lang, bands]);
   const viewedUsage = view.kind === "provider"
     ? snapshot?.usage.find((item) => item.provider === view.provider)
     : undefined;
@@ -1633,6 +1768,7 @@ export default function App() {
             onLaunchAtLoginChange={(enabled) => void toggleLaunchAtLogin(enabled)}
             onThemeChange={(theme) => void runSnapshot(() => window.aiUsage.setTheme(theme))}
             onLanguageChange={(language) => void runSnapshot(() => window.aiUsage.setLanguage(language))}
+            onMeterColorBandsChange={(bands) => void runSnapshot(() => window.aiUsage.setMeterColorBands(bands))}
             onNotificationsChange={setNotifications}
             onCopyDiagnostics={() => void copyDiagnostics()}
             onCheckForUpdates={checkForUpdates}

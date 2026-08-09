@@ -21,6 +21,15 @@ A tray widget that shows your Codex, Claude, and Gemini usage right from the mac
 - Light/dark/system theme, selectable in Settings
 - Korean/English language, selectable in Settings — covers the whole UI, including the tray menu, notifications, and per-provider status/error messages
 - Auto-update on Windows/Linux via GitHub Releases (with a manual "Check for updates" button in Settings > Updates). macOS doesn't support auto-update yet, pending code signing/notarization
+- Set the usage bar/card colors per percent range yourself — add or remove as many bands as you like and pick each one's color with a color picker
+
+## Screens
+
+| | |
+| --- | --- |
+| ![Overview (dark)](docs/screenshot.png) Overview — dark theme | ![Overview (light)](docs/screenshot-light.png) Overview — light theme; 92% is a user-defined red band |
+| ![Provider detail](docs/screenshot-detail.png) Provider detail — limits, projected exhaustion, history, data status | ![Theme and language settings](docs/screenshot-appearance.png) Settings — light/dark/system theme, Korean/English language |
+| ![Usage color settings](docs/screenshot-colors.png) Settings — freely add/remove usage color bands | ![English UI](docs/screenshot-english.png) The whole UI translates when English is selected, including the tray menu and notifications |
 
 ## How usage analysis works
 

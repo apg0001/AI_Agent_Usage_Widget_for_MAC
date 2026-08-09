@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
   LanguageSetting,
+  MeterColorBand,
   NotificationSettings,
   ProviderHistory,
   ProviderId,
@@ -21,6 +22,8 @@ const api = {
     ipcRenderer.invoke("settings:menu-bar-display-mode", mode) as Promise<UsageSnapshot>,
   setTheme: (theme: ThemeSetting) => ipcRenderer.invoke("settings:theme", theme) as Promise<UsageSnapshot>,
   setLanguage: (language: LanguageSetting) => ipcRenderer.invoke("settings:language", language) as Promise<UsageSnapshot>,
+  setMeterColorBands: (bands: MeterColorBand[]) =>
+    ipcRenderer.invoke("settings:meter-color-bands", bands) as Promise<UsageSnapshot>,
   setRefreshIntervalMs: (intervalMs: number) =>
     ipcRenderer.invoke("settings:refresh-interval", intervalMs) as Promise<UsageSnapshot>,
   setNotificationSettings: (settings: NotificationSettings) =>

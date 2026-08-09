@@ -23,6 +23,7 @@ import {
   getSettings,
   setLanguage,
   setMenuBarDisplayMode,
+  setMeterColorBands,
   setNotificationSettings,
   setRefreshIntervalMs,
   setProviderToken,
@@ -418,6 +419,10 @@ function registerIpc() {
   });
   ipcMain.handle("settings:language", async (_event, language: AppSettings["language"]) => {
     setLanguage(language);
+    return refreshAfterSettingsMutation();
+  });
+  ipcMain.handle("settings:meter-color-bands", async (_event, bands: AppSettings["meterColorBands"]) => {
+    setMeterColorBands(bands);
     return refreshAfterSettingsMutation();
   });
   ipcMain.handle("settings:refresh-interval", async (_event, intervalMs: number) => {

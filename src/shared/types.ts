@@ -105,11 +105,18 @@ export type ProviderAuth = {
   accountLabel?: string;
 };
 
+export type MeterColorBand = {
+  id: string;
+  upTo: number;
+  color: string;
+};
+
 export type AppSettings = {
   refreshIntervalMs: number;
   menuBarDisplayMode: "icons" | "iconsWithPercent";
   theme: ThemeSetting;
   language: LanguageSetting;
+  meterColorBands: MeterColorBand[];
   notifications: NotificationSettings;
   providers: Record<ProviderId, ProviderSettings>;
 };
@@ -129,6 +136,7 @@ export type PublicAppSettings = {
   menuBarDisplayMode: "icons" | "iconsWithPercent";
   theme: ThemeSetting;
   language: LanguageSetting;
+  meterColorBands: MeterColorBand[];
   notifications: NotificationSettings;
   providers: Record<ProviderId, PublicProviderSettings>;
 };
@@ -174,6 +182,12 @@ export type UpdateStatus = {
   progressPercent?: number;
   message?: string;
 };
+
+export const DEFAULT_METER_COLOR_BANDS: MeterColorBand[] = [
+  { id: "band-1", upTo: 75, color: "#3b82f6" },
+  { id: "band-2", upTo: 90, color: "#f59e0b" },
+  { id: "band-3", upTo: 100, color: "#dc2626" }
+];
 
 export const PROVIDERS: Array<{ id: ProviderId; label: string }> = [
   { id: "codex", label: "Codex" },

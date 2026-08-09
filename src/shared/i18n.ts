@@ -162,6 +162,19 @@ export type Translations = {
     diagnosticsHint: string;
     diagnosticsCopy: string;
   };
+  colors: {
+    eyebrow: string;
+    heading: string;
+    hint: string;
+    bandColorAria: (upTo: number) => string;
+    bandUpToLabel: string;
+    bandUpToAria: (index: number) => string;
+    bandRemoveAria: (index: number) => string;
+    finalBandLabel: string;
+    add: string;
+    reset: string;
+    maxBandsNote: (max: number) => string;
+  };
   usage: {
     resettingNow: string;
     daysHoursMinutes: (days: number, hours: number, minutes: number) => string;
@@ -483,6 +496,19 @@ const ko: Translations = {
     diagnosticsHint: "토큰과 개인정보를 제외한 연결 상태를 복사합니다.",
     diagnosticsCopy: "진단 정보 복사"
   },
+  colors: {
+    eyebrow: "COLORS",
+    heading: "사용률 색상",
+    hint: "퍼센트 구간마다 원하는 색상을 지정하세요. 구간은 원하는 만큼 추가하거나 삭제할 수 있습니다.",
+    bandColorAria: (upTo) => `${upTo}%까지 구간 색상`,
+    bandUpToLabel: "까지",
+    bandUpToAria: (index) => `${index}번째 구간 상한 퍼센트`,
+    bandRemoveAria: (index) => `${index}번째 구간 삭제`,
+    finalBandLabel: "100% (마지막 구간)",
+    add: "구간 추가",
+    reset: "기본값으로 초기화",
+    maxBandsNote: (max) => `구간은 최대 ${max}개까지 추가할 수 있습니다.`
+  },
   usage: {
     resettingNow: "초기화 중",
     daysHoursMinutes: (days, hours, minutes) => `${days}일 ${hours}시간 ${minutes}분`,
@@ -796,6 +822,19 @@ const en: Translations = {
     diagnosticsHeading: "Diagnostics",
     diagnosticsHint: "Copies connection status, excluding tokens and personal data.",
     diagnosticsCopy: "Copy diagnostics"
+  },
+  colors: {
+    eyebrow: "COLORS",
+    heading: "Usage colors",
+    hint: "Set a color for each percent range. Add or remove as many bands as you like.",
+    bandColorAria: (upTo) => `Band color up to ${upTo}%`,
+    bandUpToLabel: "up to",
+    bandUpToAria: (index) => `Band ${index} upper bound percent`,
+    bandRemoveAria: (index) => `Remove band ${index}`,
+    finalBandLabel: "100% (final band)",
+    add: "Add band",
+    reset: "Reset to default",
+    maxBandsNote: (max) => `You can add up to ${max} bands.`
   },
   usage: {
     resettingNow: "Resetting",

@@ -21,6 +21,15 @@ macOS 메뉴바, Windows 시스템 트레이, Linux 상단바에서 Codex, Claud
 - 설정에서 라이트/다크/시스템 테마 선택
 - 설정에서 한국어/English 선택 — 트레이 메뉴, 알림, 제공자 상태·에러 메시지까지 전체 UI가 언어를 따라감
 - Windows/Linux는 GitHub Releases 기반 자동 업데이트 지원(설정 > 업데이트에서 수동 확인도 가능). macOS는 코드사이닝/공증 전까지 자동 업데이트를 지원하지 않음
+- 사용률 막대·카드 색상을 퍼센트 구간별로 직접 지정 — 구간 개수 제한 없이 추가/삭제하고 각 구간 색상을 컬러 피커로 선택
+
+## 화면 미리보기
+
+| | |
+| --- | --- |
+| ![개요 화면(다크)](docs/screenshot.png) 개요 — 다크 테마 | ![개요 화면(라이트)](docs/screenshot-light.png) 개요 — 라이트 테마, 92%는 사용자가 지정한 빨간 구간 색상 |
+| ![제공자 상세 화면](docs/screenshot-detail.png) 제공자 상세 — 기간별 한도, 소진 예상, 이력, 데이터 상태 | ![테마·언어 설정](docs/screenshot-appearance.png) 설정 — 라이트/다크/시스템 테마, 한국어/English 언어 |
+| ![사용률 색상 설정](docs/screenshot-colors.png) 설정 — 사용률 색상 구간을 자유롭게 추가·삭제 | ![영어 UI](docs/screenshot-english.png) English 선택 시 트레이 메뉴·알림까지 전체 UI 번역 |
 
 ## 사용량 분석 방식
 

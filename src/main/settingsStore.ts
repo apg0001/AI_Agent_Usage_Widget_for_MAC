@@ -3,7 +3,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   AppSettings,
+  DEFAULT_METER_COLOR_BANDS,
   LanguageSetting,
+  MeterColorBand,
   NotificationSettings,
   PublicAppSettings,
   ProviderId,
@@ -38,11 +40,17 @@ export const defaultNotificationSettings: NotificationSettings = {
   }
 };
 
+const defaultMeterColorBands = DEFAULT_METER_COLOR_BANDS;
+
+const MAX_METER_COLOR_BANDS = 8;
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
 const defaultSettings: AppSettings = {
   refreshIntervalMs: 10_000,
   menuBarDisplayMode: "icons",
   theme: "system",
   language: "ko",
+  meterColorBands: defaultMeterColorBands,
   notifications: defaultNotificationSettings,
   providers: {
     codex: { visible: true },
@@ -141,6 +149,7 @@ function normalizeSettings(value: unknown): AppSettings {
     menuBarDisplayMode: raw.menuBarDisplayMode === "iconsWithPercent" ? "iconsWithPercent" : "icons",
     theme: normalizeTheme(raw.theme),
     language: normalizeLanguage(raw.language),
+    meterColorBands: normalizeMeterColorBands(raw.meterColorBands),
     notifications: normalizeNotificationSettings(raw.notifications),
     providers
   };
@@ -152,6 +161,43 @@ function normalizeTheme(value: unknown): ThemeSetting {
 
 function normalizeLanguage(value: unknown): LanguageSetting {
   return value === "ko" || value === "en" ? value : defaultSettings.language;
+}
+
+export function normalizeMeterColorBands(value: unknown): MeterColorBand[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return defaultMeterColorBands.map((band) => ({ ...band }));
+  }
+
+  const candidates = value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .map((item, index) => {
+      const upTo = typeof item.upTo === "number" && Number.isFinite(item.upTo)
+        ? Math.round(Math.min(100, Math.max(1, item.upTo)))
+        : 100;
+      const color = typeof item.color === "string" && HEX_COLOR_PATTERN.test(item.color)
+        ? item.color.toLowerCase()
+        : defaultMeterColorBands[index % defaultMeterColorBands.length].color;
+      const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : `band-${index + 1}`;
+      return { id, upTo, color };
+    })
+    .sort((a, b) => a.upTo - b.upTo)
+    .slice(0, MAX_METER_COLOR_BANDS);
+
+  const seenIds = new Set<string>();
+  const deduped = candidates.map((band, index) => {
+    if (seenIds.has(band.id)) {
+      return { ...band, id: `band-${index + 1}` };
+    }
+    seenIds.add(band.id);
+    return band;
+  });
+
+  if (deduped.length === 0) {
+    return defaultMeterColorBands.map((band) => ({ ...band }));
+  }
+
+  deduped[deduped.length - 1] = { ...deduped[deduped.length - 1], upTo: 100 };
+  return deduped;
 }
 
 function getStorePath() {
@@ -190,6 +236,7 @@ export function toPublicSettings(settings: AppSettings): PublicAppSettings {
     menuBarDisplayMode: settings.menuBarDisplayMode,
     theme: settings.theme,
     language: settings.language,
+    meterColorBands: settings.meterColorBands,
     notifications: normalizeNotificationSettings(settings.notifications),
     providers: {
       codex: {
@@ -249,6 +296,14 @@ export function setLanguage(language: LanguageSetting): AppSettings {
   return saveSettings({
     ...settings,
     language
+  });
+}
+
+export function setMeterColorBands(meterColorBands: MeterColorBand[]): AppSettings {
+  const settings = getSettings();
+  return saveSettings({
+    ...settings,
+    meterColorBands
   });
 }
 

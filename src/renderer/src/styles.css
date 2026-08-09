@@ -386,21 +386,8 @@ footer {
   left: 0;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: var(--status-ok);
+  background: var(--stripe-color, var(--status-ok));
   content: "";
-}
-
-.provider-card.provider-warning::before {
-  background: var(--status-warning);
-}
-
-.provider-card.provider-critical::before,
-.provider-card.provider-error::before {
-  background: var(--status-critical-stripe);
-}
-
-.provider-card.provider-signed-out::before {
-  background: var(--status-muted);
 }
 
 .provider-title {
@@ -577,19 +564,7 @@ footer {
   height: 100%;
   border-radius: inherit;
   background: var(--accent);
-  transition: width 180ms ease;
-}
-
-.meter-fill.warning {
-  background: var(--status-warning);
-}
-
-.meter-fill.critical {
-  background: var(--status-critical);
-}
-
-.meter-fill.muted {
-  background: var(--status-muted);
+  transition: width 180ms ease, background-color 180ms ease;
 }
 
 footer {
@@ -1436,6 +1411,69 @@ footer {
 .time-range > span {
   padding-bottom: 10px;
   color: var(--ink-400);
+}
+
+.color-band-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.color-band-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-band-swatch {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--ink-300);
+  border-radius: 8px;
+  padding: 2px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.color-band-upto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-500);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.color-band-upto input {
+  width: 60px;
+  height: 34px;
+  border: 1px solid var(--ink-300);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-800);
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.color-band-final {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-500);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.color-band-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.color-band-actions .secondary-button {
+  flex: 1;
 }
 
 .diagnostics-section {
