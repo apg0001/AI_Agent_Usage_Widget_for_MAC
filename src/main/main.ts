@@ -238,6 +238,24 @@ function toggleWindow() {
   showWindow();
 }
 
+function buildTrayMenu() {
+  const t = getTranslations(getSettings().language);
+  return Menu.buildFromTemplate([
+    { label: t.main.trayOpen, click: toggleWindow },
+    { type: "separator" },
+    { label: t.main.trayQuit, click: () => app.quit() }
+  ]);
+}
+
+function applyLinuxTrayContextMenu() {
+  // AppIndicator/StatusNotifierItem 기반 리눅스 트레이(GNOME, KDE Plasma 등)는 컨텍스트 메뉴가
+  // 상시 등록돼 있어야 클릭에 반응한다. 메뉴가 없으면 click/right-click 이벤트 자체가 오지 않아
+  // 아이콘은 보이지만 클릭이 아무 반응도 하지 않는 것처럼 보인다.
+  if (platformAdapter.id === "linux") {
+    tray?.setContextMenu(buildTrayMenu());
+  }
+}
+
 async function updateTray(snapshot: UsageSnapshot, generation: number) {
   if (platformAdapter.id === "mac") {
     if (!usageRefreshQueue.isCurrent(generation)) {
@@ -419,6 +437,7 @@ function registerIpc() {
   });
   ipcMain.handle("settings:language", async (_event, language: AppSettings["language"]) => {
     setLanguage(language);
+    applyLinuxTrayContextMenu();
     return refreshAfterSettingsMutation();
   });
   ipcMain.handle("settings:meter-color-bands", async (_event, bands: AppSettings["meterColorBands"]) => {
@@ -457,6 +476,9 @@ function registerIpc() {
     return refreshAfterSettingsMutation();
   });
   ipcMain.handle("app:quit", () => app.quit());
+  ipcMain.handle("app:hide-window", () => {
+    window?.hide();
+  });
   ipcMain.handle("app:get-launch-at-login", () => platformAdapter.getLaunchAtLogin(app));
   ipcMain.handle("app:set-launch-at-login", (_event, enabled: boolean) => {
     platformAdapter.setLaunchAtLogin(app, enabled);
@@ -503,14 +525,9 @@ if (hasSingleInstanceLock) {
     tray = new Tray(await createStaticTrayIcon());
     tray.on("click", toggleWindow);
     tray.on("right-click", () => {
-      const t = getTranslations(getSettings().language);
-      const trayMenu = Menu.buildFromTemplate([
-        { label: t.main.trayOpen, click: toggleWindow },
-        { type: "separator" },
-        { label: t.main.trayQuit, click: () => app.quit() }
-      ]);
-      tray?.popUpContextMenu(trayMenu);
+      tray?.popUpContextMenu(buildTrayMenu());
     });
+    applyLinuxTrayContextMenu();
     void refreshUsage();
     void refreshServiceStatuses();
     serviceStatusTimer = setInterval(() => {

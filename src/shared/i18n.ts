@@ -25,6 +25,7 @@ export type Translations = {
     refreshAria: string;
     settingsAria: string;
     quitAria: string;
+    closeAria: string;
     usageListAria: string;
     loadErrorTitle: string;
     retry: string;
@@ -340,6 +341,7 @@ const ko: Translations = {
     refreshAria: "사용량 새로고침",
     settingsAria: "설정 열기",
     quitAria: "Quota Bar 종료",
+    closeAria: "창 닫기",
     usageListAria: "AI 제공자 사용량",
     loadErrorTitle: "사용량을 불러오지 못했습니다",
     retry: "다시 시도",
@@ -667,6 +669,7 @@ const en: Translations = {
     refreshAria: "Refresh usage",
     settingsAria: "Open settings",
     quitAria: "Quit Quota Bar",
+    closeAria: "Close window",
     usageListAria: "AI provider usage",
     loadErrorTitle: "Couldn't load usage",
     retry: "Retry",

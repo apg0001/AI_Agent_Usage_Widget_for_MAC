@@ -804,7 +804,8 @@ function Overview({
   onOpenProvider,
   onOpenSettings,
   registerFocusTarget,
-  onQuit
+  onQuit,
+  onClose
 }: {
   snapshot: UsageSnapshot | null;
   busy: boolean;
@@ -816,6 +817,7 @@ function Overview({
   onOpenSettings: (focusKey: Extract<OverviewFocusKey, `settings-${string}`>) => void;
   registerFocusTarget: (key: OverviewFocusKey, element: HTMLButtonElement | null) => void;
   onQuit: () => void;
+  onClose: () => void;
 }) {
   const { t } = useI18n();
   const usage = snapshot?.usage ?? [];
@@ -845,6 +847,11 @@ function Overview({
           <button className="icon-button subtle" type="button" onClick={onQuit} aria-label={t.overview.quitAria}>
             <Power size={17} aria-hidden="true" />
           </button>
+          {window.aiUsage.platform === "linux" ? (
+            <button className="icon-button subtle" type="button" onClick={onClose} aria-label={t.overview.closeAria}>
+              <X size={17} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -1793,6 +1800,7 @@ export default function App() {
           onOpenSettings={openSettings}
           registerFocusTarget={registerFocusTarget}
           onQuit={window.aiUsage.quit}
+          onClose={window.aiUsage.hideWindow}
         />
       </main>
     </I18nContext.Provider>

@@ -39,6 +39,7 @@ const api = {
     }>,
   logout: (provider: ProviderId) => ipcRenderer.invoke("provider:logout", provider) as Promise<UsageSnapshot>,
   quit: () => ipcRenderer.invoke("app:quit") as Promise<void>,
+  hideWindow: () => ipcRenderer.invoke("app:hide-window") as Promise<void>,
   getLaunchAtLogin: () => ipcRenderer.invoke("app:get-launch-at-login") as Promise<boolean>,
   setLaunchAtLogin: (enabled: boolean) => ipcRenderer.invoke("app:set-launch-at-login", enabled) as Promise<boolean>,
   copyDiagnostics: () => ipcRenderer.invoke("app:copy-diagnostics") as Promise<boolean>,
