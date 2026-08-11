@@ -3,7 +3,6 @@ const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 
 const root = resolve(__dirname, "..");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 function platformKey(platform = process.platform) {
   const platforms = {
@@ -129,6 +128,24 @@ async function githubRequest(pathname, token, options = {}) {
     return null;
   }
   return response.json();
+}
+
+function npmInvocation(env = process.env, platform = process.platform) {
+  if (env.npm_execpath) {
+    return { command: process.execPath, argsPrefix: [env.npm_execpath] };
+  }
+  if (platform === "win32") {
+    return {
+      command: env.ComSpec || "cmd.exe",
+      argsPrefix: ["/d", "/s", "/c", "npm.cmd"]
+    };
+  }
+  return { command: "npm", argsPrefix: [] };
+}
+
+function runNpm(args, env = process.env) {
+  const invocation = npmInvocation(env);
+  run(invocation.command, [...invocation.argsPrefix, ...args], { env });
 }
 
 async function githubReleaseForTag(repository, tag, token) {
@@ -327,14 +344,14 @@ async function resumeRelease(env = process.env) {
 }
 
 function packageCurrentPlatform(platform = process.platform) {
-  run(npmCommand, ["run", `package:${platformKey(platform)}`]);
+  runNpm(["run", `package:${platformKey(platform)}`]);
 }
 
 function bumpVersion(requested = "patch") {
   if (!["patch", "minor", "major"].includes(requested) && !isVersion(requested)) {
     throw new Error(`invalid release version: ${requested}`);
   }
-  run(npmCommand, ["version", requested]);
+  runNpm(["version", requested]);
 }
 
 async function main() {
@@ -384,6 +401,7 @@ module.exports = {
   classifyCurrentRelease,
   isVersion,
   loadReleaseEnvironment,
+  npmInvocation,
   packageCurrentPlatform,
   platformKey,
   pushVersion,

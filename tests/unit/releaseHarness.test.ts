@@ -12,6 +12,17 @@ describe("자동 릴리스 하네스", () => {
     expect(releaseHarness.platformKey(platform)).toBe(expected);
   });
 
+  it("Windows에서도 npm.cmd를 직접 spawn하지 않고 현재 npm CLI를 Node로 실행한다", () => {
+    expect(releaseHarness.npmInvocation({ npm_execpath: "C:/npm/npm-cli.js" }, "win32")).toEqual({
+      command: process.execPath,
+      argsPrefix: ["C:/npm/npm-cli.js"]
+    });
+    expect(releaseHarness.npmInvocation({ ComSpec: "C:/Windows/System32/cmd.exe" }, "win32")).toEqual({
+      command: "C:/Windows/System32/cmd.exe",
+      argsPrefix: ["/d", "/s", "/c", "npm.cmd"]
+    });
+  });
+
   it("지원하지 않는 플랫폼과 잘못된 버전 입력을 거부한다", () => {
     expect(() => releaseHarness.platformKey("freebsd")).toThrow("Unsupported release platform");
     expect(releaseHarness.isVersion("0.4.3")).toBe(true);
