@@ -7,7 +7,7 @@ import { PlatformAdapter } from "./types.js";
 // Electron의 app.setLoginItemSettings는 Linux를 지원하지 않아 XDG 자동 시작 스펙에 맞춰
 // ~/.config/autostart에 .desktop 파일을 직접 쓰고 지운다.
 const AUTOSTART_DIR = path.join(homedir(), ".config", "autostart");
-const AUTOSTART_DESKTOP_FILE = path.join(AUTOSTART_DIR, "gigacharge.desktop");
+const AUTOSTART_DESKTOP_FILE = path.join(AUTOSTART_DIR, "quota-bar.desktop");
 
 function resolveExecutablePath(app: App) {
   // AppImage로 실행 중이면 마운트된 임시 경로 대신 원본 AppImage 경로를 써야 재부팅 후에도 유효하다.

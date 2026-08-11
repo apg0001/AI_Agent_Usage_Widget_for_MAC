@@ -26,6 +26,7 @@ describe("macOS/Windows 공통 런타임", () => {
     expect(platformIndex).toContain('platform === "darwin"');
     expect(platformIndex).toContain('platform === "win32"');
     expect(main).toContain("platformAdapter.hideFromDock(app)");
+    expect(main).toContain('app.setAppUserModelId("com.apg0001.aiusagewidget")');
     expect(main).toContain("registerIpc()");
     expect(main).toContain("usageHistoryStore = new UsageHistoryStore");
     expect(main).toContain("createWindow()");

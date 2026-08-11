@@ -514,7 +514,7 @@ if (hasSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     if (process.platform === "win32") {
-      app.setAppUserModelId("com.apg0001.gigacharge");
+      app.setAppUserModelId("com.apg0001.aiusagewidget");
     }
     platformAdapter.hideFromDock(app);
     Menu.setApplicationMenu(null);
