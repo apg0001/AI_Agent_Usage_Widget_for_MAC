@@ -1,10 +1,10 @@
-# Quota Bar
+# GigaCharge
 
 *[한국어](README.md) | English*
 
 A tray widget that shows your Codex, Claude, and Gemini usage right from the macOS menu bar, Windows system tray, or Linux top bar.
 
-![Quota Bar screenshot](docs/screenshot.png)
+![GigaCharge screenshot](docs/screenshot.png)
 
 ## Key features
 
@@ -33,13 +33,13 @@ A tray widget that shows your Codex, Claude, and Gemini usage right from the mac
 
 ## How usage analysis works
 
-Quota Bar does not count tokens or requests on its own. It collects the **per-period usage percentage** returned by local CLI records or provider usage APIs, and computes local history and burn trends without mixing accounts or limit windows that carry identifying information. Real usage analysis currently applies to Codex and Claude; Gemini has no stable official quota source, so only its sign-in status is detected. In the app's provider detail view, tapping the `?` button next to `Projected exhaustion` shows a summary of how this works.
+GigaCharge does not count tokens or requests on its own. It collects the **per-period usage percentage** returned by local CLI records or provider usage APIs, and computes local history and burn trends without mixing accounts or limit windows that carry identifying information. Real usage analysis currently applies to Codex and Claude; Gemini has no stable official quota source, so only its sign-in status is detected. In the app's provider detail view, tapping the `?` button next to `Projected exhaustion` shows a summary of how this works.
 
 ### Data source and freshness
 
 - `Local session` means rate-limit records saved by the CLI, `Provider usage API` means a usage response returned by the service, and `Showing cache` means the last healthy value kept during a temporary lookup failure.
-- `Observed at source` is when the provider or local record measured the usage, and `Received by app` is when Quota Bar received that value. Even if the screen just refreshed, a stale observation time can mean recent usage hasn't been reflected yet.
-- Error/signed-out/unavailable values and stale cache are never used as the basis for new history points, exhaustion projections, or usage alerts. The `Accurate` label means the app used the local record or API value as-is — it does not mean Quota Bar independently verified the provider's billing records.
+- `Observed at source` is when the provider or local record measured the usage, and `Received by app` is when GigaCharge received that value. Even if the screen just refreshed, a stale observation time can mean recent usage hasn't been reflected yet.
+- Error/signed-out/unavailable values and stale cache are never used as the basis for new history points, exhaustion projections, or usage alerts. The `Accurate` label means the app used the local record or API value as-is — it does not mean GigaCharge independently verified the provider's billing records.
 
 ### Local history
 
@@ -76,7 +76,7 @@ Sign-in state is re-detected from each CLI's saved session, so it persists acros
 
 ## Install and run
 
-Grab the installer for your OS from the [Releases page](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/releases/latest) and install it directly (Windows: `Quota Bar Setup *.exe`, or the portable `Quota Bar *.exe`). On Windows/Linux, the app checks for and offers new versions automatically from Settings > Updates after install.
+Grab the installer for your OS from the [Releases page](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/releases/latest) and install it directly (Windows: `GigaCharge Setup *.exe`, or the portable `GigaCharge *.exe`). On Windows/Linux, the app checks for and offers new versions automatically from Settings > Updates after install.
 
 To run or build it yourself instead, clone the repo and start it in dev mode.
 
@@ -93,8 +93,8 @@ Run the command for your OS. Building macOS artifacts on macOS and Windows/Linux
 
 | OS | Command | Output location |
 | --- | --- | --- |
-| macOS | `npm run package:mac` | `dist/Quota Bar-*.dmg`, `dist/Quota Bar-*-mac.zip` |
-| Windows | `npm run package:win` | `dist/Quota Bar Setup *.exe` (installer), `dist/Quota Bar *.exe` (portable) |
+| macOS | `npm run package:mac` | `dist/GigaCharge-*.dmg`, `dist/GigaCharge-*-mac.zip` |
+| Windows | `npm run package:win` | `dist/GigaCharge Setup *.exe` (installer), `dist/GigaCharge *.exe` (portable) |
 | Linux | `npm run package:linux` | `dist/*.AppImage`, `dist/*.deb` |
 
 Before building, you can verify the repo is in a clean, working state with `npm run verify` (runs type checking, linting, tests, and the build in order). For more detailed procedures and troubleshooting, see [HARNESS.md](HARNESS.md).

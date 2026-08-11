@@ -828,7 +828,7 @@ function Overview({
       <header className="titlebar">
         <div>
           <p>{t.common.tagline}</p>
-          <h1>Quota Bar</h1>
+          <h1>{t.common.appName}</h1>
         </div>
         <div className="toolbar">
           <button className="icon-button" type="button" onClick={onRefresh} disabled={busy} aria-label={t.overview.refreshAria}>

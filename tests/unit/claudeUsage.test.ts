@@ -73,7 +73,7 @@ async function loadUsageProviders() {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-08-09T09:00:00.000Z"));
-  fakeHome = mkdtempSync(path.join(tmpdir(), "quota-bar-claude-"));
+  fakeHome = mkdtempSync(path.join(tmpdir(), "gigacharge-claude-"));
   previousLocalDetection = process.env.AI_USAGE_WIDGET_DISABLE_LOCAL_DETECTION;
   previousClaudeConfigDirectory = process.env.CLAUDE_CONFIG_DIR;
   process.env.AI_USAGE_WIDGET_DISABLE_LOCAL_DETECTION = "0";

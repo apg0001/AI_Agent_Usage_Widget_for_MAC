@@ -81,14 +81,32 @@ function showWindow() {
     return;
   }
 
-  if (blurHideTimer) {
-    clearTimeout(blurHideTimer);
-    blurHideTimer = null;
-  }
+  clearBlurHideTimer();
   positionWindow();
   window.show();
   window.focus();
   window.moveTop();
+}
+
+function clearBlurHideTimer() {
+  if (blurHideTimer) {
+    clearTimeout(blurHideTimer);
+    blurHideTimer = null;
+  }
+}
+
+function scheduleHideAfterFocusLoss() {
+  if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH || activeNotifications > 0) {
+    return;
+  }
+
+  clearBlurHideTimer();
+  blurHideTimer = setTimeout(() => {
+    blurHideTimer = null;
+    if (window && !window.isDestroyed() && window.isVisible() && !window.isFocused() && activeNotifications === 0) {
+      window.hide();
+    }
+  }, 100);
 }
 
 async function createStaticTrayIcon() {
@@ -107,6 +125,7 @@ function createWindow() {
   window = new BrowserWindow({
     width: 420,
     height: 640,
+    ...(platformAdapter.id === "mac" ? { type: "panel" } : {}),
     show: false,
     resizable: false,
     fullscreenable: false,
@@ -151,29 +170,9 @@ function createWindow() {
   }
 
   window.on("blur", () => {
-    if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
-      return;
-    }
-    if (activeNotifications > 0) {
-      // The blur is most likely caused by interacting with one of our own
-      // notification toasts (clicking it, dismissing it), not the user
-      // clicking away from the panel. Don't hide for it; releaseNotification
-      // re-focuses the panel once the notification is gone.
-      return;
-    }
-    // A blur can otherwise still fire from a transient, unrelated focus shift
-    // rather than the user actually clicking away. Debounce and re-check so
-    // those don't hide the panel either.
-    if (blurHideTimer) {
-      clearTimeout(blurHideTimer);
-    }
-    blurHideTimer = setTimeout(() => {
-      blurHideTimer = null;
-      if (window && !window.isDestroyed() && !window.isFocused() && activeNotifications === 0) {
-        window.hide();
-      }
-    }, 150);
+    scheduleHideAfterFocusLoss();
   });
+  window.on("hide", clearBlurHideTimer);
 }
 
 let activeNotifications = 0;
@@ -273,7 +272,7 @@ async function updateTray(snapshot: UsageSnapshot, generation: number) {
   if (!usageRefreshQueue.isCurrent(generation)) {
     return;
   }
-  tray?.setToolTip(`Quota Bar\n${getTrayTitle(snapshot)}`);
+  tray?.setToolTip(`GigaCharge\n${getTrayTitle(snapshot)}`);
 }
 
 function usageEventContent(event: UsageNotificationEvent, language: AppSettings["language"]) {
@@ -515,7 +514,7 @@ if (hasSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     if (process.platform === "win32") {
-      app.setAppUserModelId("com.apg0001.aiusagewidget");
+      app.setAppUserModelId("com.apg0001.gigacharge");
     }
     platformAdapter.hideFromDock(app);
     Menu.setApplicationMenu(null);

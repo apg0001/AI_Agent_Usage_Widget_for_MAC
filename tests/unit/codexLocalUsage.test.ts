@@ -21,7 +21,7 @@ let previousCodexHome: string | undefined;
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-08-09T09:00:00.000Z"));
-  fakeHome = mkdtempSync(path.join(tmpdir(), "quota-bar-codex-"));
+  fakeHome = mkdtempSync(path.join(tmpdir(), "gigacharge-codex-"));
   previousLocalDetection = process.env.AI_USAGE_WIDGET_DISABLE_LOCAL_DETECTION;
   previousCodexHome = process.env.CODEX_HOME;
   process.env.AI_USAGE_WIDGET_DISABLE_LOCAL_DETECTION = "0";

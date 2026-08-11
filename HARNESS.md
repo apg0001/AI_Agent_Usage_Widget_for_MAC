@@ -1,6 +1,6 @@
-# Quota Bar Harness
+# GigaCharge Harness
 
-이 문서는 Quota Bar를 macOS, Windows, Linux에서 같은 저장소로 검증하고 패키징하기 위한 하네스입니다.
+이 문서는 GigaCharge를 macOS, Windows, Linux에서 같은 저장소로 검증하고 패키징하기 위한 하네스입니다.
 
 ## 전제
 
@@ -25,6 +25,29 @@ git switch develop
 git pull
 npm install
 ```
+
+## 작업 단위 마감 규칙
+
+수정·추가 작업은 기능, 버그 수정, 문서 변경처럼 되돌리거나 리뷰하기 쉬운 논리 단위로 나눕니다. 각 작업 단위가 끝나면 관련 테스트를 먼저 통과시킨 뒤 커밋하고 원격 브랜치에 푸쉬합니다.
+
+권장 흐름:
+
+```bash
+git status --short
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run test:integration
+git status --short
+git add <changed-files>
+git commit -m "[feat] 작업 내용 요약"
+git push origin <branch-name>
+```
+
+- 변경 범위가 좁고 영향이 명확하면 관련 테스트만 먼저 돌릴 수 있지만, 푸쉬 전에는 가능한 한 `npm run verify` 또는 위 검증 묶음을 통과시킵니다.
+- 커밋 메시지는 [CONTRIBUTING.md](CONTRIBUTING.md)의 `[feat]`, `[fix]`, `[docs]` 형식을 따릅니다.
+- 한 커밋에는 하나의 작업 단위만 담고, unrelated 변경이나 이전 빌드 산출물은 함께 커밋하지 않습니다.
+- 테스트를 통과하지 못한 상태로 푸쉬해야 하는 예외가 있으면 커밋 메시지나 PR 설명에 실패한 명령과 이유를 남깁니다.
 
 ## 검증 하네스
 
@@ -73,7 +96,7 @@ npm run dev
 
 ```bash
 npm run build
-open "dist/mac-arm64/Quota Bar.app"
+open "dist/mac-arm64/GigaCharge.app"
 ```
 
 배포 파일 생성:
@@ -84,9 +107,9 @@ npm run package:mac
 
 성공 산출물:
 
-- `dist/Quota Bar-0.1.0-arm64.dmg`
-- `dist/Quota Bar-0.1.0-arm64-mac.zip`
-- `dist/mac-arm64/Quota Bar.app`
+- `dist/GigaCharge-0.1.0-arm64.dmg`
+- `dist/GigaCharge-0.1.0-arm64-mac.zip`
+- `dist/mac-arm64/GigaCharge.app`
 
 ## Windows 이전 빌드
 
@@ -103,8 +126,8 @@ npm run package:win
 
 성공 산출물:
 
-- `dist/Quota Bar Setup ... .exe`
-- `dist/Quota Bar ... .exe` portable 파일
+- `dist/GigaCharge Setup ... .exe`
+- `dist/GigaCharge ... .exe` portable 파일
 
 주의:
 
@@ -136,7 +159,7 @@ npm run package:linux
 
 ## 릴리스와 자동 업데이트
 
-Quota Bar는 `electron-updater`로 GitHub Releases를 확인해 자동 업데이트합니다. 패키징된 앱(설치본)에서만 동작하며 `npm run dev`에서는 확인하지 않습니다.
+GigaCharge는 `electron-updater`로 GitHub Releases를 확인해 자동 업데이트합니다. 패키징된 앱(설치본)에서만 동작하며 `npm run dev`에서는 확인하지 않습니다.
 
 ### 최초 1회 설정
 
@@ -168,9 +191,9 @@ macOS는 서명되지 않은 앱은 Squirrel.Mac이 업데이트 설치를 거�
 
 최신 macOS 배포용으로 남기는 파일:
 
-- `dist/Quota Bar-0.1.0-arm64.dmg`
-- `dist/Quota Bar-0.1.0-arm64-mac.zip`
-- `dist/mac-arm64/Quota Bar.app`
+- `dist/GigaCharge-0.1.0-arm64.dmg`
+- `dist/GigaCharge-0.1.0-arm64-mac.zip`
+- `dist/mac-arm64/GigaCharge.app`
 - `dist/main`
 - `dist/renderer`
 

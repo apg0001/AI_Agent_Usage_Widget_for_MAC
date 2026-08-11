@@ -39,7 +39,7 @@ export function createDiagnosticsReport(snapshot: UsageSnapshot, metadata: Diagn
     schemaVersion: 1,
     generatedAt: metadata.generatedAt ?? new Date().toISOString(),
     app: {
-      name: metadata.appName ?? "Quota Bar",
+      name: metadata.appName ?? "GigaCharge",
       version: metadata.appVersion,
       platform: metadata.platform,
       arch: metadata.arch,

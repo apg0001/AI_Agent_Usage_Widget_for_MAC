@@ -1,6 +1,6 @@
 {
-  "name": "quota-bar",
-  "version": "0.3.0",
+  "name": "gigacharge",
+  "version": "0.4.0",
   "description": "Cross-platform tray app for monitoring AI quota usage.",
   "main": "dist/main/main/main.js",
   "scripts": {
@@ -59,8 +59,8 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "com.apg0001.aiusagewidget",
-    "productName": "Quota Bar",
+    "appId": "com.apg0001.gigacharge",
+    "productName": "GigaCharge",
     "files": [
       "dist/main/**/*",
       "dist/renderer/**/*",

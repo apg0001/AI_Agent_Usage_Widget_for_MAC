@@ -1,10 +1,10 @@
-# Quota Bar
+# GigaCharge
 
 *한국어 | [English](README.en.md)*
 
 macOS 메뉴바, Windows 시스템 트레이, Linux 상단바에서 Codex, Claude, Gemini 사용량을 바로 확인할 수 있는 트레이 위젯입니다.
 
-![Quota Bar 실행 화면](docs/screenshot.png)
+![GigaCharge 실행 화면](docs/screenshot.png)
 
 ## 주요 기능
 
@@ -33,13 +33,13 @@ macOS 메뉴바, Windows 시스템 트레이, Linux 상단바에서 Codex, Claud
 
 ## 사용량 분석 방식
 
-Quota Bar는 토큰이나 요청 수를 자체적으로 세지 않습니다. 로컬 CLI 기록 또는 제공자 사용량 API가 돌려준 **기간별 사용률(%)**을 수집하고, 식별 정보가 있는 계정과 한도 구간을 서로 섞지 않은 채 로컬 이력과 소진 추세를 계산합니다. 현재 실제 사용률 분석은 Codex와 Claude에 적용되며, 안정적인 공식 할당량 소스가 없는 Gemini는 로그인 상태만 감지합니다. 앱의 제공자 상세 화면에서 `소진 예상` 옆 `?` 버튼을 누르면 아래 방식의 요약 설명을 바로 볼 수 있습니다.
+GigaCharge는 토큰이나 요청 수를 자체적으로 세지 않습니다. 로컬 CLI 기록 또는 제공자 사용량 API가 돌려준 **기간별 사용률(%)**을 수집하고, 식별 정보가 있는 계정과 한도 구간을 서로 섞지 않은 채 로컬 이력과 소진 추세를 계산합니다. 현재 실제 사용률 분석은 Codex와 Claude에 적용되며, 안정적인 공식 할당량 소스가 없는 Gemini는 로그인 상태만 감지합니다. 앱의 제공자 상세 화면에서 `소진 예상` 옆 `?` 버튼을 누르면 아래 방식의 요약 설명을 바로 볼 수 있습니다.
 
 ### 데이터 출처와 신선도
 
 - `로컬 세션`은 CLI가 저장한 rate-limit 기록, `제공자 사용량 API`는 서비스가 반환한 사용량 응답, `캐시 표시 중`은 일시적인 조회 실패 때 유지한 마지막 정상 값을 뜻합니다.
-- `원본 관측`은 제공자나 로컬 기록이 사용량을 측정한 시각이고, `앱 수신`은 Quota Bar가 그 값을 받은 시각입니다. 화면을 방금 갱신했더라도 원본 관측 시각이 오래됐다면 최신 사용이 아직 반영되지 않았을 수 있습니다.
-- 오류·미로그인·사용 불가 값과 오래된 캐시는 새 이력, 소진 예측, 사용량 알림의 근거로 사용하지 않습니다. 화면의 `정확` 표시는 로컬 기록이나 API 값을 그대로 사용했다는 뜻이며, Quota Bar가 제공자의 과금 내역을 독립적으로 검증했다는 뜻은 아닙니다.
+- `원본 관측`은 제공자나 로컬 기록이 사용량을 측정한 시각이고, `앱 수신`은 GigaCharge가 그 값을 받은 시각입니다. 화면을 방금 갱신했더라도 원본 관측 시각이 오래됐다면 최신 사용이 아직 반영되지 않았을 수 있습니다.
+- 오류·미로그인·사용 불가 값과 오래된 캐시는 새 이력, 소진 예측, 사용량 알림의 근거로 사용하지 않습니다. 화면의 `정확` 표시는 로컬 기록이나 API 값을 그대로 사용했다는 뜻이며, GigaCharge가 제공자의 과금 내역을 독립적으로 검증했다는 뜻은 아닙니다.
 
 ### 로컬 이력
 
@@ -76,7 +76,7 @@ Quota Bar는 토큰이나 요청 수를 자체적으로 세지 않습니다. 로
 
 ## 설치 및 실행
 
-[Releases 페이지](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/releases/latest)에서 운영체제에 맞는 설치 파일을 받아 바로 설치할 수 있습니다(Windows: `Quota Bar Setup *.exe` 또는 portable `Quota Bar *.exe`). Windows/Linux는 설치 후 설정 > 업데이트에서 새 버전을 자동으로 안내합니다.
+[Releases 페이지](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/releases/latest)에서 운영체제에 맞는 설치 파일을 받아 바로 설치할 수 있습니다(Windows: `GigaCharge Setup *.exe` 또는 portable `GigaCharge *.exe`). Windows/Linux는 설치 후 설정 > 업데이트에서 새 버전을 자동으로 안내합니다.
 
 직접 실행하거나 빌드하고 싶다면 저장소를 받아 개발 모드로 실행할 수 있습니다.
 
@@ -93,8 +93,8 @@ npm run dev
 
 | OS | 명령 | 결과물 위치 |
 | --- | --- | --- |
-| macOS | `npm run package:mac` | `dist/Quota Bar-*.dmg`, `dist/Quota Bar-*-mac.zip` |
-| Windows | `npm run package:win` | `dist/Quota Bar Setup *.exe`(설치형), `dist/Quota Bar *.exe`(portable) |
+| macOS | `npm run package:mac` | `dist/GigaCharge-*.dmg`, `dist/GigaCharge-*-mac.zip` |
+| Windows | `npm run package:win` | `dist/GigaCharge Setup *.exe`(설치형), `dist/GigaCharge *.exe`(portable) |
 | Linux | `npm run package:linux` | `dist/*.AppImage`, `dist/*.deb` |
 
 빌드 전에 저장소를 정리된 상태로 검증하고 싶다면 `npm run verify`를 실행하세요(타입 체크, 린트, 테스트, 빌드를 순서대로 실행합니다). 더 자세한 절차와 문제 해결은 [HARNESS.md](HARNESS.md)를 참고하세요.

@@ -4,7 +4,7 @@ export type Language = LanguageSetting;
 
 export type Translations = {
   common: {
-    quotaBarName: string;
+    appName: string;
     tagline: string;
   };
   status: Record<"ok" | "warning" | "critical" | "signed-out" | "error", string>;
@@ -286,7 +286,7 @@ function durationShortEn(totalSeconds: number) {
 
 const ko: Translations = {
   common: {
-    quotaBarName: "Quota Bar",
+    appName: "GigaCharge",
     tagline: "AI quota tracker"
   },
   status: {
@@ -340,7 +340,7 @@ const ko: Translations = {
   overview: {
     refreshAria: "사용량 새로고침",
     settingsAria: "설정 열기",
-    quitAria: "Quota Bar 종료",
+    quitAria: "GigaCharge 종료",
     closeAria: "창 닫기",
     usageListAria: "AI 제공자 사용량",
     loadErrorTitle: "사용량을 불러오지 못했습니다",
@@ -378,7 +378,7 @@ const ko: Translations = {
     closeAria: "분석 방식 설명 닫기",
     title: "사용량을 이렇게 분석합니다",
     bodyAria: "사용량 분석 설명",
-    intro: "제공자가 보고한 사용률과 Quota Bar가 쌓은 정상 이력을 함께 해석합니다.",
+    intro: "제공자가 보고한 사용률과 GigaCharge가 쌓은 정상 이력을 함께 해석합니다.",
     steps: [
       {
         title: "기간 경과선",
@@ -469,7 +469,7 @@ const ko: Translations = {
     refreshLabel: "자동 갱신",
     refreshAria: "자동 갱신 간격",
     launchAtLoginTitle: "로그인할 때 자동 실행",
-    launchAtLoginHint: "컴퓨터를 켜면 Quota Bar 시작",
+    launchAtLoginHint: "컴퓨터를 켜면 GigaCharge 시작",
     appearanceEyebrow: "APPEARANCE",
     appearanceHeading: "테마와 언어",
     themeLabel: "테마",
@@ -550,7 +550,7 @@ const ko: Translations = {
     claudeLoadingPlaceholder: "Claude 사용량을 불러오는 중입니다."
   },
   main: {
-    trayOpen: "Quota Bar 열기",
+    trayOpen: "GigaCharge 열기",
     trayQuit: "종료",
     serviceStatusUnknownLabel: "상태 확인 불가",
     serviceOperationalLabel: "정상 운영",
@@ -574,7 +574,7 @@ const ko: Translations = {
   oauth: {
     loginCancelled: "로그인이 취소되었습니다. 이 창을 닫아도 됩니다.",
     callbackStateInvalid: "OAuth callback 상태가 올바르지 않습니다.",
-    loginComplete: "Quota Bar 로그인 완료. 이 창을 닫아도 됩니다.",
+    loginComplete: "GigaCharge 로그인 완료. 이 창을 닫아도 됩니다.",
     googleTokenExchangeFailed: (status) => `Google OAuth 토큰 교환 실패: ${status}`,
     geminiMissingConfig: "앱 OAuth 설정이 없습니다. 터미널에서 gemini를 실행해 브라우저 로그인을 완료하세요.",
     geminiLoginSuccess: "Gemini OAuth 로그인이 완료되었습니다.",
@@ -614,7 +614,7 @@ const ko: Translations = {
 
 const en: Translations = {
   common: {
-    quotaBarName: "Quota Bar",
+    appName: "GigaCharge",
     tagline: "AI quota tracker"
   },
   status: {
@@ -668,7 +668,7 @@ const en: Translations = {
   overview: {
     refreshAria: "Refresh usage",
     settingsAria: "Open settings",
-    quitAria: "Quit Quota Bar",
+    quitAria: "Quit GigaCharge",
     closeAria: "Close window",
     usageListAria: "AI provider usage",
     loadErrorTitle: "Couldn't load usage",
@@ -706,7 +706,7 @@ const en: Translations = {
     closeAria: "Close analysis explanation",
     title: "Here's how we analyze usage",
     bodyAria: "Usage analysis explanation",
-    intro: "We combine the usage percentage providers report with the healthy history Quota Bar has collected.",
+    intro: "We combine the usage percentage providers report with the healthy history GigaCharge has collected.",
     steps: [
       {
         title: "Period elapsed line",
@@ -797,7 +797,7 @@ const en: Translations = {
     refreshLabel: "Auto-refresh",
     refreshAria: "Auto-refresh interval",
     launchAtLoginTitle: "Launch at login",
-    launchAtLoginHint: "Start Quota Bar when you turn on your computer",
+    launchAtLoginHint: "Start GigaCharge when you turn on your computer",
     appearanceEyebrow: "APPEARANCE",
     appearanceHeading: "Theme & language",
     themeLabel: "Theme",
@@ -878,7 +878,7 @@ const en: Translations = {
     claudeLoadingPlaceholder: "Loading Claude usage."
   },
   main: {
-    trayOpen: "Open Quota Bar",
+    trayOpen: "Open GigaCharge",
     trayQuit: "Quit",
     serviceStatusUnknownLabel: "Status unavailable",
     serviceOperationalLabel: "Operational",
@@ -902,7 +902,7 @@ const en: Translations = {
   oauth: {
     loginCancelled: "Sign-in was cancelled. You can close this window.",
     callbackStateInvalid: "The OAuth callback state is invalid.",
-    loginComplete: "Quota Bar sign-in complete. You can close this window.",
+    loginComplete: "GigaCharge sign-in complete. You can close this window.",
     googleTokenExchangeFailed: (status) => `Google OAuth token exchange failed: ${status}`,
     geminiMissingConfig: "App OAuth isn't configured. Run gemini in a terminal to finish browser sign-in.",
     geminiLoginSuccess: "Gemini OAuth sign-in complete.",

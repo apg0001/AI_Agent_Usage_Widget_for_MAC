@@ -23,7 +23,7 @@ import {
 let testDirectory = "";
 
 beforeEach(() => {
-  testDirectory = mkdtempSync(join(tmpdir(), "quota-bar-settings-"));
+  testDirectory = mkdtempSync(join(tmpdir(), "gigacharge-settings-"));
   electronMock.userDataPath = testDirectory;
 });
 

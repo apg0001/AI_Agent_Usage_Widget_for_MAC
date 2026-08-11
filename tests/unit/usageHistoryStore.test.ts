@@ -8,7 +8,7 @@ import { ProviderUsage, UsageHistoryPoint } from "../../src/shared/types";
 const temporaryDirectories: string[] = [];
 
 function temporaryFile() {
-  const directory = mkdtempSync(path.join(tmpdir(), "quota-bar-history-"));
+  const directory = mkdtempSync(path.join(tmpdir(), "gigacharge-history-"));
   temporaryDirectories.push(directory);
   return path.join(directory, "usage-history.json");
 }

@@ -38,7 +38,7 @@ README에 담기엔 너무 자세한, "실제로 어떻게 사용량을 가져�
 
 - Codex는 CLI 세션이 있으면 자동으로 연결됩니다. 필요하면 카드의 토큰 입력칸에 토큰을 넣고 `로그인`을 누릅니다.
 - Claude는 Claude Code를 연 뒤 `/login`을 실행하면 앱이 해당 세션을 자동으로 확인합니다.
-- Claude Code의 로그인은 매번 다시 할 필요가 없습니다. Quota Bar는 저장된 로그인과 refresh credential이 남아 있으면 이를 연결된 세션으로 표시하고, Claude Code가 회전형 OAuth 토큰을 갱신해 파일이나 Keychain에 저장하면 다음 화면 갱신에서 즉시 반영합니다. 여러 Claude Code 프로세스의 토큰 갱신을 방해하지 않도록 Quota Bar 자체는 refresh token을 소비하지 않습니다.
+- Claude Code의 로그인은 매번 다시 할 필요가 없습니다. GigaCharge는 저장된 로그인과 refresh credential이 남아 있으면 이를 연결된 세션으로 표시하고, Claude Code가 회전형 OAuth 토큰을 갱신해 파일이나 Keychain에 저장하면 다음 화면 갱신에서 즉시 반영합니다. 여러 Claude Code 프로세스의 토큰 갱신을 방해하지 않도록 GigaCharge 자체는 refresh token을 소비하지 않습니다.
 - Gemini는 기존 `~/.gemini/oauth_creds.json` 세션이 있으면 자동 감지됩니다. 개인 계정에서 `gemini` Google 로그인이 막히면 Antigravity CLI로 전환하거나 API key 인증을 사용해야 합니다.
 - 앱 안의 Gemini `Google OAuth 로그인` 버튼을 사용하려면 실행 환경에 `GEMINI_OAUTH_CLIENT_ID`, `GEMINI_OAUTH_CLIENT_SECRET`가 필요합니다. 일반 배포판에서는 Google의 Gemini CLI/Antigravity 전환 정책 때문에 기존 CLI 세션 또는 API key 기반 흐름을 우선 확인해야 합니다.
 
@@ -60,7 +60,7 @@ README에 담기엔 너무 자세한, "실제로 어떻게 사용량을 가져�
 팝업 하단의 토글로 로그인 시 자동 실행을 켜고 끌 수 있습니다.
 
 - macOS/Windows는 Electron의 `app.setLoginItemSettings`를 그대로 사용합니다(`src/main/platform/loginItem.ts`).
-- Linux는 이 API를 지원하지 않아 XDG 자동 시작 스펙에 따라 `~/.config/autostart/quota-bar.desktop` 파일을 직접 쓰고 지웁니다(`src/main/platform/linux.ts`). AppImage로 실행 중이면 `APPIMAGE` 환경 변수의 원본 경로를 사용해 마운트된 임시 경로가 아닌 실제 파일을 가리키게 합니다.
+- Linux는 이 API를 지원하지 않아 XDG 자동 시작 스펙에 따라 `~/.config/autostart/gigacharge.desktop` 파일을 직접 쓰고 지웁니다(`src/main/platform/linux.ts`). AppImage로 실행 중이면 `APPIMAGE` 환경 변수의 원본 경로를 사용해 마운트된 임시 경로가 아닌 실제 파일을 가리키게 합니다.
 - `npm run dev`처럼 패키징되지 않은 상태(`app.isPackaged === false`)에서는 토글이 항상 꺼진 상태로만 보이고 실제로 등록되지 않습니다. electron 개발 셸 자체가 로그인 항목으로 등록되는 걸 막기 위한 의도적인 제한입니다. 실제 동작 확인은 `npm run package:*`로 만든 설치본에서 해야 합니다.
 
 ## Linux 참고 사항

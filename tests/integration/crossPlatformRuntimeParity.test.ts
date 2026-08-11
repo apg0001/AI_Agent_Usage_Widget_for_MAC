@@ -46,6 +46,6 @@ describe("macOS/Windows 공통 런타임", () => {
     expect(main).toContain('if (platformAdapter.id === "mac")');
     expect(main).toContain("tray?.setTitle(getTrayTitle(snapshot))");
     expect(main).toContain("buildUsageTrayIconSvg(snapshot)");
-    expect(main).toContain("tray?.setToolTip(`Quota Bar\\n${getTrayTitle(snapshot)}`)");
+    expect(main).toContain("tray?.setToolTip(`GigaCharge\\n${getTrayTitle(snapshot)}`)");
   });
 });

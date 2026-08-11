@@ -79,6 +79,16 @@ describe("Electron 런타임 설정", () => {
     expect(main).toContain("Math.min(640, workArea.height - 16)");
   });
 
+  it("패널에서 다른 곳으로 포커스가 이동하면 모든 플랫폼에서 창을 숨긴다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+
+    expect(main).toContain("function scheduleHideAfterFocusLoss()");
+    expect(main).toContain('window.on("blur"');
+    expect(main).toContain("scheduleHideAfterFocusLoss()");
+    expect(main).toContain("window.isVisible() && !window.isFocused()");
+    expect(main).toContain("window.hide()");
+  });
+
   it("새 설정·이력·진단·상태 페이지 IPC를 main과 preload에 동일하게 공개한다", () => {
     const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
     const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
