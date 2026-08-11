@@ -181,6 +181,7 @@ export type UpdateStatus = {
   version?: string;
   progressPercent?: number;
   message?: string;
+  manualInstallCommand?: string;
 };
 
 export const DEFAULT_METER_COLOR_BANDS: MeterColorBand[] = [

@@ -1484,6 +1484,24 @@ footer {
   margin-bottom: 0;
 }
 
+.manual-update-install {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manual-update-install code {
+  display: block;
+  overflow-x: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--ink-300);
+  border-radius: 8px;
+  background: var(--surface-translucent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre;
+}
+
 .empty-state {
   min-height: 210px;
   border: 1px dashed var(--ink-300);

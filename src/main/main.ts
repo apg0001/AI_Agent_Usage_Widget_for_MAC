@@ -495,6 +495,10 @@ function registerIpc() {
     }));
     return true;
   });
+  ipcMain.handle("app:copy-text", (_event, text: string) => {
+    clipboard.writeText(text);
+    return true;
+  });
   ipcMain.handle("app:open-status-page", async (_event, provider: ProviderId) => {
     const statusPageUrl = STATUS_PAGE_URLS[provider];
     if (statusPageUrl) {

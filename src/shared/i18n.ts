@@ -259,6 +259,10 @@ export type Translations = {
     statusDownloaded: (version: string) => string;
     statusNotAvailable: string;
     statusError: (message: string) => string;
+    manualInstallTitle: string;
+    manualInstallBody: string;
+    manualInstallCopy: string;
+    manualInstallCopied: string;
   };
   notices: {
     launchAtLoginCheckFailed: string;
@@ -594,7 +598,11 @@ const ko: Translations = {
     statusDownloading: (percent) => `다운로드 중 ${percent}%`,
     statusDownloaded: (version) => `v${version} 설치 준비 완료`,
     statusNotAvailable: "최신 버전입니다.",
-    statusError: (message) => `업데이트 확인 실패: ${message}`
+    statusError: (message) => `업데이트 확인 실패: ${message}`,
+    manualInstallTitle: "수동 설치가 필요합니다",
+    manualInstallBody: "이 환경에서는 설치 권한 창을 띄울 수 없어 자동 설치를 진행할 수 없습니다. 아래 명령어를 터미널에 붙여넣어 직접 설치해 주세요.",
+    manualInstallCopy: "명령어 복사",
+    manualInstallCopied: "명령어가 복사됐습니다."
   },
   notices: {
     launchAtLoginCheckFailed: "자동 실행 상태를 확인하지 못했습니다.",
@@ -922,7 +930,11 @@ const en: Translations = {
     statusDownloading: (percent) => `Downloading ${percent}%`,
     statusDownloaded: (version) => `v${version} ready to install`,
     statusNotAvailable: "You're up to date.",
-    statusError: (message) => `Update check failed: ${message}`
+    statusError: (message) => `Update check failed: ${message}`,
+    manualInstallTitle: "Manual install required",
+    manualInstallBody: "This environment can't show an authorization prompt, so the update can't install itself. Paste this command into a terminal to install it.",
+    manualInstallCopy: "Copy command",
+    manualInstallCopied: "Command copied."
   },
   notices: {
     launchAtLoginCheckFailed: "Couldn't check the launch-at-login status.",

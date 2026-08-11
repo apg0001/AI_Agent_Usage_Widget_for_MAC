@@ -1048,7 +1048,8 @@ function SettingsView({
   onNotificationsChange,
   onCopyDiagnostics,
   onCheckForUpdates,
-  onInstallUpdate
+  onInstallUpdate,
+  onCopyUpdateCommand
 }: {
   snapshot: UsageSnapshot;
   launchAtLogin: boolean;
@@ -1069,6 +1070,7 @@ function SettingsView({
   onCopyDiagnostics: () => void;
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
+  onCopyUpdateCommand: (command: string) => void;
 }) {
   const { t, bands } = useI18n();
   const sortedBands = [...bands].sort((a, b) => a.upTo - b.upTo);
@@ -1421,7 +1423,24 @@ function SettingsView({
               <h2 id="updates-heading">{t.updates.heading}</h2>
             </div>
             <p>{t.updates.currentVersion(appVersion)}{updateStatusText(t, updateStatus) ? ` · ${updateStatusText(t, updateStatus)}` : ""}</p>
-            {updateStatus.state === "downloaded" ? (
+            {updateStatus.state === "downloaded" && updateStatus.manualInstallCommand ? (
+              <div className="manual-update-install">
+                <p>
+                  <strong>{t.updates.manualInstallTitle}</strong>
+                  <br />
+                  {t.updates.manualInstallBody}
+                </p>
+                <code>{updateStatus.manualInstallCommand}</code>
+                <button
+                  className="secondary-button full-button"
+                  type="button"
+                  onClick={() => onCopyUpdateCommand(updateStatus.manualInstallCommand!)}
+                >
+                  <Clipboard size={15} aria-hidden="true" />
+                  {t.updates.manualInstallCopy}
+                </button>
+              </div>
+            ) : updateStatus.state === "downloaded" ? (
               <button className="primary-button full-button" type="button" onClick={onInstallUpdate}>
                 <RefreshCw size={15} aria-hidden="true" />
                 {t.updates.restartAndInstall}
@@ -1722,6 +1741,16 @@ export default function App() {
     void window.aiUsage.quitAndInstallUpdate();
   }
 
+  async function copyUpdateCommand(command: string) {
+    setBusy(true);
+    try {
+      await window.aiUsage.copyText(command);
+      setNotice(t.updates.manualInstallCopied);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openStatusPage(provider: ProviderId) {
     void window.aiUsage.openStatusPage(provider).catch(() => setNotice(t.notices.statusPageOpenFailed));
   }
@@ -1780,6 +1809,7 @@ export default function App() {
             onCopyDiagnostics={() => void copyDiagnostics()}
             onCheckForUpdates={checkForUpdates}
             onInstallUpdate={installUpdate}
+            onCopyUpdateCommand={(command) => void copyUpdateCommand(command)}
           />
         </main>
       </I18nContext.Provider>

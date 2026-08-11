@@ -43,6 +43,7 @@ const api = {
   getLaunchAtLogin: () => ipcRenderer.invoke("app:get-launch-at-login") as Promise<boolean>,
   setLaunchAtLogin: (enabled: boolean) => ipcRenderer.invoke("app:set-launch-at-login", enabled) as Promise<boolean>,
   copyDiagnostics: () => ipcRenderer.invoke("app:copy-diagnostics") as Promise<boolean>,
+  copyText: (text: string) => ipcRenderer.invoke("app:copy-text", text) as Promise<boolean>,
   openStatusPage: (provider: ProviderId) => ipcRenderer.invoke("app:open-status-page", provider) as Promise<void>,
   getAppVersion: () => ipcRenderer.invoke("app:get-version") as Promise<string>,
   getUpdateStatus: () => ipcRenderer.invoke("app:get-update-status") as Promise<UpdateStatus>,
