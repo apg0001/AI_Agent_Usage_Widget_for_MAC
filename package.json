@@ -16,6 +16,7 @@
     "release:win": "npm run compile && electron-builder --win --publish always",
     "release:linux": "npm run compile && electron-builder --linux --publish always",
     "release:auto": "node scripts/release-harness.js bump",
+    "release:resume": "node scripts/release-harness.js resume",
     "release:preflight": "node scripts/release-harness.js preflight",
     "preversion": "npm run release:preflight && npm run verify",
     "postversion": "node scripts/release-harness.js push",

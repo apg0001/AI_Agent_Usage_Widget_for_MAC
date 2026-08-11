@@ -194,7 +194,7 @@ Windows와 Linux의 패키징된 앱은 `electron-updater`로 공개된 GitHub R
 1. 로컬 Git 자격 증명이 `origin`의 `develop` 브랜치와 버전 태그를 푸시할 수 있어야 합니다.
 2. GitHub Actions 릴리스 워크플로에는 Release 자산을 만들고 수정할 수 있는 `contents: write` 권한이 필요합니다.
 3. 코드 서명·공증을 사용하는 플랫폼의 인증서와 비밀번호는 GitHub Actions Secrets로만 전달합니다. 토큰이나 비밀값을 명령행, 로그, 문서에 출력하지 않습니다.
-4. 로컬 저수준 게시를 위해 `electron-builder.env`를 사용하는 경우에도 파일은 `.gitignore` 상태를 유지하고 내용을 커밋하거나 출력하지 않습니다. 정상 릴리스 경로는 이 파일로 직접 게시하는 `release:*`가 아니라 `release:auto`입니다.
+4. `release:auto`의 preflight가 저장소 push 권한과 기존 릴리스 충돌을 확인할 수 있도록 `GH_TOKEN` 또는 `GITHUB_TOKEN`이 필요합니다. 환경 변수로 설정하거나 `.gitignore`된 `electron-builder.env`에 저장하며, 값을 커밋하거나 출력하지 않습니다. 정상 릴리스 경로는 이 토큰으로 직접 게시하는 `release:*`가 아니라 `release:auto`입니다.
 
 ### SemVer 단계 선택
 
@@ -244,10 +244,10 @@ npm run release:auto -- patch
 ### 실패 복구
 
 - preflight나 `verify`가 실패해 버전 태그가 만들어지지 않았다면 원인을 수정·커밋한 뒤 같은 `release:auto` 명령을 다시 실행합니다.
-- 로컬 버전 커밋과 태그가 만들어진 뒤 atomic push만 실패했다면 새 버전을 만들지 않습니다. 원격 상태와 태그가 현재 버전 커밋을 가리키는지 확인한 뒤 같은 `develop`과 태그의 atomic push만 재시도합니다.
+- 로컬 버전 커밋과 태그가 만들어진 뒤 atomic push만 실패했다면 새 버전을 만들지 않고 `npm run release:resume`을 실행합니다. 이 명령은 버전을 올리지 않으며 현재 `develop`과 태그의 atomic push만 재시도합니다.
 - 태그 push 뒤 GitHub Actions가 실패했다면 버전을 다시 올리거나 태그를 이동하지 않습니다. GitHub에서 같은 Actions run의 실패한 작업을 재실행합니다.
 - 일부 자산만 올라간 draft는 수동 공개하지 않습니다. 같은 run이 재실행되어 필수 자산 검증까지 통과하게 합니다.
-- 이미 `v<version>` 태그가 로컬이나 원격에 있다면 `release:auto`를 다시 실행하지 않습니다.
+- 현재 버전 태그가 HEAD에 이미 있다면 `release:auto`를 다시 실행하지 않습니다. `release:resume`은 원격 태그가 이미 있으면 릴리스 상태를 확인하고, 공개가 미완료인 경우 같은 GitHub Actions run을 재실행하라고 중단합니다.
 
 ### 자동 업데이트 동작 확인
 

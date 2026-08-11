@@ -21,11 +21,12 @@
   3. `postversion`: `develop`과 새 태그를 원격에 atomic push합니다.
   4. 태그가 GitHub Actions의 macOS, Windows, Linux 패키징을 시작합니다. 워크플로는 draft 릴리스의 필수 자산과 업데이트 메타데이터를 검증한 뒤에만 공개합니다.
 - 완료는 로컬 검증 성공만을 뜻하지 않습니다. 버전 커밋과 태그가 원격에 있고, 3개 OS 작업이 성공했으며, draft 검증을 통과한 GitHub Release가 공개된 것까지 확인해야 합니다.
+- 로컬 preflight에는 저장소 push 권한을 확인할 `GH_TOKEN` 또는 `GITHUB_TOKEN`이 필요합니다. 값은 환경 변수나 `.gitignore`된 `electron-builder.env`로만 전달하고 출력하지 않습니다.
 
 ## 실패 복구와 보안
 
 - `preversion` 또는 버전 커밋·태그 생성 전에 실패했다면 원인을 고친 뒤 같은 SemVer 단계로 다시 시작할 수 있습니다.
-- 버전 태그가 이미 만들어졌다면 다시 버전을 올리지 않습니다. atomic push가 실패한 경우 같은 버전 커밋과 태그를 그대로 푸시하고, GitHub Actions가 실패한 경우 같은 Actions run의 실패한 작업을 재실행합니다.
+- 버전 태그가 이미 만들어졌다면 다시 버전을 올리지 않습니다. atomic push가 실패한 경우 `npm run release:resume`으로 같은 버전 커밋과 태그만 원자적으로 푸시하고, GitHub Actions가 실패한 경우 같은 Actions run의 실패한 작업을 재실행합니다.
 - 필수 자산 검증을 통과하지 않은 draft 릴리스를 수동으로 공개하지 않습니다. 기존 태그를 이동하거나 삭제해서 재릴리스하지 않습니다.
 - 토큰, 인증서, 서명 비밀번호와 `electron-builder.env`의 내용을 출력하거나 커밋하지 않습니다. 로그와 최종 보고에도 비밀값을 포함하지 않습니다.
 - `npm run package`는 현재 OS를 자동 선택하는 로컬 패키징 명령이며 GitHub Release를 만들지 않습니다. 정상 공개 릴리스에는 항상 `release:auto`와 태그 기반 GitHub Actions를 사용합니다.

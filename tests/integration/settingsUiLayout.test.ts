@@ -79,4 +79,16 @@ describe("설정 UI 레이아웃 계약", () => {
     expect(updateError.get("display")).toBe("grid");
     expect(updateDetailsCode.get("overflow-wrap")).toBe("anywhere");
   });
+
+  it("Linux 수동 업데이트는 설치 명령과 복사 동작을 함께 제공한다", () => {
+    const manualInstall = declarationsFor(".manual-update-install");
+    const manualInstallCode = declarationsFor(".manual-update-install code");
+
+    expect(appSource).toContain("updateStatus.manualInstallCommand");
+    expect(appSource).toContain("onCopyUpdateCommand(updateStatus.manualInstallCommand!)");
+    expect(appSource).toContain("t.updates.manualInstallTitle");
+    expect(appSource).toContain("t.updates.manualInstallCopy");
+    expect(manualInstall.get("display")).toBe("flex");
+    expect(manualInstallCode.get("overflow-x")).toBe("auto");
+  });
 });

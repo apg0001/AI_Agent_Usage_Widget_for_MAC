@@ -1,31 +1,42 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const updaterMock = vi.hoisted(() => ({
-  handlers: new Map<string, (value?: unknown) => void>(),
-  checkForUpdates: vi.fn(),
-  quitAndInstall: vi.fn(),
-  on: vi.fn((event: string, handler: (value?: unknown) => void) => {
-    updaterMock.handlers.set(event, handler);
-  })
-}));
+const updaterMock = vi.hoisted(() => {
+  const handlers = new Map<string, (value?: unknown) => void>();
+  const checkForUpdates = vi.fn();
+  const quitAndInstall = vi.fn();
+  const on = vi.fn((event: string, handler: (value?: unknown) => void) => {
+    handlers.set(event, handler);
+  });
+
+  return {
+    handlers,
+    checkForUpdates,
+    quitAndInstall,
+    on,
+    autoUpdater: {
+      autoDownload: false,
+      autoInstallOnAppQuit: false,
+      on,
+      checkForUpdates,
+      quitAndInstall
+    }
+  };
+});
 
 vi.mock("electron", () => ({
   app: { isPackaged: true }
 }));
 
 vi.mock("electron-updater", () => ({
-  autoUpdater: {
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
-    on: updaterMock.on,
-    checkForUpdates: updaterMock.checkForUpdates,
-    quitAndInstall: updaterMock.quitAndInstall
-  }
+  autoUpdater: updaterMock.autoUpdater
 }));
 
 vi.mock("../../src/main/settingsStore", () => ({
   getSettings: () => ({ language: "ko" })
 }));
+
+const originalPlatform = process.platform;
+const originalAppImage = process.env.APPIMAGE;
 
 describe("앱 업데이트 오류 경계", () => {
   beforeEach(() => {
@@ -34,6 +45,76 @@ describe("앱 업데이트 오류 경계", () => {
     updaterMock.on.mockClear();
     updaterMock.checkForUpdates.mockReset().mockResolvedValue(undefined);
     updaterMock.quitAndInstall.mockClear();
+    updaterMock.autoUpdater.autoDownload = false;
+    updaterMock.autoUpdater.autoInstallOnAppQuit = false;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: originalPlatform
+    });
+    if (originalAppImage === undefined) {
+      delete process.env.APPIMAGE;
+    } else {
+      process.env.APPIMAGE = originalAppImage;
+    }
+  });
+
+  it("Linux deb 설치본은 자동 설치를 끄고 안전한 수동 명령만 제공한다", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "linux"
+    });
+    delete process.env.APPIMAGE;
+
+    const updater = await import("../../src/main/appUpdater");
+    const listener = vi.fn();
+    updater.onUpdateStatusChange(listener);
+    updater.initAutoUpdate();
+
+    expect(updaterMock.autoUpdater.autoDownload).toBe(true);
+    expect(updaterMock.autoUpdater.autoInstallOnAppQuit).toBe(false);
+
+    updaterMock.handlers.get("update-downloaded")?.({
+      version: "0.4.3",
+      downloadedFile: "/tmp/GigaCharge update's.deb"
+    });
+
+    expect(listener).toHaveBeenLastCalledWith({
+      state: "downloaded",
+      version: "0.4.3",
+      manualInstallCommand: "sudo dpkg -i '/tmp/GigaCharge update'\\''s.deb'"
+    });
+
+    updater.quitAndInstallUpdate();
+    expect(updaterMock.quitAndInstall).not.toHaveBeenCalled();
+  });
+
+  it("Linux AppImage는 기존 자동 설치 경로를 유지한다", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "linux"
+    });
+    process.env.APPIMAGE = "/opt/GigaCharge.AppImage";
+
+    const updater = await import("../../src/main/appUpdater");
+    updater.initAutoUpdate();
+
+    expect(updaterMock.autoUpdater.autoInstallOnAppQuit).toBe(true);
+
+    updaterMock.handlers.get("update-downloaded")?.({
+      version: "0.4.3",
+      downloadedFile: "/tmp/GigaCharge.AppImage"
+    });
+    expect(updater.getLatestUpdateStatus()).toMatchObject({
+      state: "downloaded",
+      version: "0.4.3",
+      manualInstallCommand: undefined
+    });
+
+    updater.quitAndInstallUpdate();
+    expect(updaterMock.quitAndInstall).toHaveBeenCalledTimes(1);
   });
 
   it("autoUpdater error 이벤트에서 원문·스택·비밀값을 renderer 상태로 보내지 않는다", async () => {

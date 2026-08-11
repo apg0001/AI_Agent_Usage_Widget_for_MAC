@@ -96,6 +96,7 @@ describe("Electron 런타임 설정", () => {
       "settings:notifications",
       "history:get",
       "app:copy-diagnostics",
+      "app:copy-text",
       "app:open-status-page"
     ];
 
@@ -108,7 +109,9 @@ describe("Electron 런타임 설정", () => {
     expect(preload).toContain("setNotificationSettings");
     expect(preload).toContain("getHistory");
     expect(preload).toContain("copyDiagnostics");
+    expect(preload).toContain("copyText");
     expect(preload).toContain("openStatusPage");
+    expect(main).toContain("clipboard.writeText(text)");
   });
 
   it("이력 범위를 검증하고 공식 서비스 상태와 장애 알림을 갱신한다", () => {

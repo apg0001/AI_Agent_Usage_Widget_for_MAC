@@ -1,6 +1,6 @@
 const { createHash } = require("node:crypto");
 const { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } = require("node:fs");
-const { basename, join, resolve } = require("node:path");
+const { basename, isAbsolute, join, relative, resolve, sep } = require("node:path");
 
 const root = resolve(__dirname, "..");
 
@@ -81,7 +81,11 @@ function assetSelection(platform, names, version, productName) {
 
 function assertPlatformAssets(platform, names) {
   const has = (pattern) => names.some((name) => pattern.test(name));
-  if (platform === "win" && (!has(/-Setup-.*\.exe$/) || !has(/-Setup-.*\.exe\.blockmap$/) || !has(/latest\.yml$/))) {
+  const hasWindowsPortable = names.some((name) => name.endsWith(".exe") && !/-Setup-.*\.exe$/.test(name));
+  if (
+    platform === "win" &&
+    (!has(/-Setup-.*\.exe$/) || !hasWindowsPortable || !has(/-Setup-.*\.exe\.blockmap$/) || !has(/latest\.yml$/))
+  ) {
     throw new Error("Windows release requires installer, blockmap, portable executable, and latest.yml");
   }
   if (platform === "mac" && (!has(/\.dmg$/) || !has(/-mac\.zip$/) || !has(/latest-mac\.yml$/))) {
@@ -92,12 +96,31 @@ function assertPlatformAssets(platform, names) {
   }
 }
 
+function isPathWithin(parent, candidate) {
+  const pathFromParent = relative(parent, candidate);
+  return Boolean(pathFromParent) && !isAbsolute(pathFromParent) && pathFromParent !== ".." && !pathFromParent.startsWith(`..${sep}`);
+}
+
+function assertSafeStagingPath(outputDirectory, stagingDirectory, releaseDirectory = resolve(root, "release")) {
+  const output = resolve(outputDirectory);
+  const staging = resolve(stagingDirectory);
+  const releaseRoot = resolve(releaseDirectory);
+  if (!isPathWithin(releaseRoot, staging)) {
+    throw new Error(`staging directory must be a child of ${releaseRoot}`);
+  }
+  if (staging === output || isPathWithin(staging, output)) {
+    throw new Error("staging directory must not equal or contain the build output directory");
+  }
+  return staging;
+}
+
 function stageAssets(platform, outputDirectory, stagingDirectory) {
   const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
   const version = packageJson.version;
   const productName = packageJson.build.productName;
   const output = resolve(outputDirectory);
   const staging = resolve(stagingDirectory);
+  assertSafeStagingPath(output, staging);
   const names = readdirSync(output).filter((name) => statSync(join(output, name)).isFile());
   const selected = [...new Set(assetSelection(platform, names, version, productName))];
 
@@ -148,6 +171,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assertPlatformAssets,
+  assertSafeStagingPath,
   assetSelection,
   parseUpdateFeed,
   safeAssetName,

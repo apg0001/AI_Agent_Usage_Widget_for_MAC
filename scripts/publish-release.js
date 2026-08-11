@@ -146,21 +146,29 @@ async function verifyRemoteAssets(release, expected, context) {
   }
 }
 
+function releaseDisposition(release, tag) {
+  if (!release) {
+    return "create-draft";
+  }
+  if (release.prerelease) {
+    throw new Error(`${tag} exists as a prerelease and will not be overwritten`);
+  }
+  return release.draft ? "replace-draft" : "published";
+}
+
 async function publishRelease(directory, env = process.env) {
   const context = githubContext(env);
   const assets = localAssets(directory, context.version);
   let release = await releaseForTag(context);
+  const disposition = releaseDisposition(release, context.tag);
 
-  if (release && !release.draft) {
+  if (disposition === "published") {
     await verifyRemoteAssets(release, assets, context);
     console.log(`${context.tag} is already published with the verified asset set.`);
     return release.html_url;
   }
-  if (release?.prerelease) {
-    throw new Error(`${context.tag} exists as a prerelease and will not be overwritten`);
-  }
 
-  if (!release) {
+  if (disposition === "create-draft") {
     release = await request(apiUrl(context.owner, context.repo, "/releases"), context.token, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -222,5 +230,6 @@ module.exports = {
   githubContext,
   localAssets,
   publishRelease,
+  releaseDisposition,
   sha256
 };

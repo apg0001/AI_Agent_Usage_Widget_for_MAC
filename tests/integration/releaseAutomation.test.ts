@@ -11,6 +11,8 @@ describe("릴리스 자동화 계약", () => {
 
   it("npm version 생명주기가 검증과 원자적 태그 푸시에 연결된다", () => {
     expect(packageJson.scripts["release:auto"]).toContain("release-harness.js bump");
+    expect(packageJson.scripts["release:resume"]).toBe("node scripts/release-harness.js resume");
+    expect(packageJson.scripts["release:resume"]).not.toContain("bump");
     expect(packageJson.scripts.preversion).toContain("release:preflight");
     expect(packageJson.scripts.preversion).toContain("npm run verify");
     expect(packageJson.scripts.postversion).toContain("release-harness.js push");
@@ -31,6 +33,8 @@ describe("릴리스 자동화 계약", () => {
     expect(workflow).toContain("macos-latest");
     expect(workflow).toContain("ubuntu-latest");
     expect(workflow).toContain("--publish never");
+    expect(workflow).toContain("fetch-depth: 0");
+    expect(workflow).toContain("node scripts/release-harness.js validate-ref");
     expect(workflow).toContain("needs: build");
     expect(workflow).toContain("merge-multiple: true");
     expect(workflow).toContain("node scripts/publish-release.js release/assets");
