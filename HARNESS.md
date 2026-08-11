@@ -246,6 +246,7 @@ npm run release:auto -- patch
 - preflight나 `verify`가 실패해 버전 태그가 만들어지지 않았다면 원인을 수정·커밋한 뒤 같은 `release:auto` 명령을 다시 실행합니다.
 - 로컬 버전 커밋과 태그가 만들어진 뒤 atomic push만 실패했다면 새 버전을 만들지 않고 `npm run release:resume`을 실행합니다. 이 명령은 버전을 올리지 않으며 현재 `develop`과 태그의 atomic push만 재시도합니다.
 - 태그 push 뒤 GitHub Actions가 실패했다면 버전을 다시 올리거나 태그를 이동하지 않습니다. GitHub에서 같은 Actions run의 실패한 작업을 재실행합니다.
+- 태그가 원격에 있지만 Actions run 자체가 생성되지 않은 예외 상황에서는 `Build and publish release` 워크플로를 `Run workflow`로 실행하고 기존 `v<version>` 태그를 입력합니다. 워크플로는 그 태그의 커밋만 체크아웃해 동일 버전을 재개합니다.
 - 일부 자산만 올라간 draft는 수동 공개하지 않습니다. 같은 run이 재실행되어 필수 자산 검증까지 통과하게 합니다.
 - 현재 버전 태그가 HEAD에 이미 있다면 `release:auto`를 다시 실행하지 않습니다. `release:resume`은 원격 태그가 이미 있으면 릴리스 상태를 확인하고, 공개가 미완료인 경우 같은 GitHub Actions run을 재실행하라고 중단합니다.
 

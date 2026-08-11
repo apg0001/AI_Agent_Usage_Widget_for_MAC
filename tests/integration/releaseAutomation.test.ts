@@ -34,6 +34,10 @@ describe("릴리스 자동화 계약", () => {
     expect(workflow).toContain("ubuntu-latest");
     expect(workflow).toContain("--publish never");
     expect(workflow).toContain("fetch-depth: 0");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}");
+    expect(workflow).toContain("ref: ${{ env.RELEASE_TAG }}");
+    expect(workflow).toContain('GITHUB_REF_NAME="$RELEASE_TAG" GITHUB_SHA=""');
     expect(workflow).toContain("node scripts/release-harness.js validate-ref");
     expect(workflow).toContain("needs: build");
     expect(workflow).toContain("merge-multiple: true");
