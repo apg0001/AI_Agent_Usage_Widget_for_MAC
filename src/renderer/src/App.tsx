@@ -3,6 +3,7 @@ import {
   Bell,
   Check,
   ChevronRight,
+  CircleAlert,
   CircleHelp,
   Clipboard,
   ExternalLink,
@@ -159,7 +160,18 @@ function updateStatusText(t: Translations, status: UpdateStatus): string {
     case "not-available":
       return status.message ?? t.updates.statusNotAvailable;
     case "error":
-      return t.updates.statusError(status.message ?? "");
+      switch (status.errorCode) {
+        case "metadata-missing":
+          return t.updates.errorMetadataMissing;
+        case "network":
+          return t.updates.errorNetwork;
+        case "access-denied":
+          return t.updates.errorAccessDenied;
+        case "invalid-release":
+          return t.updates.errorInvalidRelease;
+        default:
+          return t.updates.errorUnknown;
+      }
     default:
       return "";
   }
@@ -1422,7 +1434,24 @@ function SettingsView({
               <span className="eyebrow">{t.updates.eyebrow}</span>
               <h2 id="updates-heading">{t.updates.heading}</h2>
             </div>
-            <p>{t.updates.currentVersion(appVersion)}{updateStatusText(t, updateStatus) ? ` · ${updateStatusText(t, updateStatus)}` : ""}</p>
+            <p className="update-version">{t.updates.currentVersion(appVersion)}</p>
+            {updateStatus.state === "error" ? (
+              <div className={`update-error update-error-${updateStatus.errorCode}`} role="alert">
+                <div className="update-error-message">
+                  <CircleAlert size={17} aria-hidden="true" />
+                  <div>
+                    <strong>{t.updates.errorHeading}</strong>
+                    <p>{updateStatusText(t, updateStatus)}</p>
+                  </div>
+                </div>
+                <details className="update-error-details">
+                  <summary>{t.updates.errorDetails}</summary>
+                  <code>{updateStatus.diagnosticCode}</code>
+                </details>
+              </div>
+            ) : updateStatusText(t, updateStatus) ? (
+              <p className="update-status" role="status">{updateStatusText(t, updateStatus)}</p>
+            ) : null}
             {updateStatus.state === "downloaded" && updateStatus.manualInstallCommand ? (
               <div className="manual-update-install">
                 <p>

@@ -22,6 +22,7 @@ describe("macOS/Windows 공통 런타임", () => {
     const platformIndex = source("src/main/platform/index.ts");
     const mac = source("src/main/platform/mac.ts");
     const windows = source("src/main/platform/windows.ts");
+    const linux = source("src/main/platform/linux.ts");
 
     expect(platformIndex).toContain('platform === "darwin"');
     expect(platformIndex).toContain('platform === "win32"');
@@ -33,7 +34,7 @@ describe("macOS/Windows 공통 런타임", () => {
     expect(main).toContain("void refreshUsage()");
     expect(main).toContain("void refreshServiceStatuses()");
 
-    for (const adapter of [mac, windows]) {
+    for (const adapter of [mac, windows, linux]) {
       expect(adapter).not.toContain("BrowserWindow");
       expect(adapter).not.toContain("ipcMain");
       expect(adapter).not.toContain("UsageNotificationDetector");

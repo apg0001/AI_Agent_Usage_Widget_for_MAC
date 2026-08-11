@@ -3,12 +3,15 @@ import { autoUpdater } from "electron-updater";
 import { getTranslations } from "../shared/i18n.js";
 import { UpdateStatus } from "../shared/types.js";
 import { getSettings } from "./settingsStore.js";
+import { normalizeUpdateError } from "./updateError.js";
 
 type UpdateStatusListener = (status: UpdateStatus) => void;
 
 let listener: UpdateStatusListener | null = null;
 let latestStatus: UpdateStatus = { state: "idle" };
 let initialized = false;
+let lastErrorKey = "";
+let lastErrorAt = 0;
 
 // deb/rpm 설치본은 새 버전을 적용하려면 pkexec로 root 권한을 얻어야 한다. GUI polkit
 // 인증 에이전트가 없는 세션(미니멀 WM, 일부 원격 데스크톱 등)에서는 pkexec가 응답을
@@ -22,8 +25,24 @@ function quoteShellPath(filePath: string): string {
 }
 
 function emit(status: UpdateStatus) {
+  if (status.state !== "error") {
+    lastErrorKey = "";
+    lastErrorAt = 0;
+  }
   latestStatus = status;
   listener?.(status);
+}
+
+function emitError(error: unknown) {
+  const normalized = normalizeUpdateError(error);
+  const key = `${normalized.errorCode}:${normalized.diagnosticCode}`;
+  const now = Date.now();
+  if (key === lastErrorKey && now - lastErrorAt < 1_000) {
+    return;
+  }
+  lastErrorKey = key;
+  lastErrorAt = now;
+  emit({ state: "error", ...normalized });
 }
 
 export function getLatestUpdateStatus(): UpdateStatus {
@@ -53,9 +72,7 @@ export function initAutoUpdate() {
     version: info.version,
     manualInstallCommand: isLinuxManualInstall ? `sudo dpkg -i ${quoteShellPath(info.downloadedFile)}` : undefined
   }));
-  autoUpdater.on("error", (error) => {
-    emit({ state: "error", message: error instanceof Error ? error.message : String(error) });
-  });
+  autoUpdater.on("error", emitError);
 
   void checkForUpdates();
 }
@@ -70,7 +87,7 @@ export async function checkForUpdates(): Promise<void> {
   try {
     await autoUpdater.checkForUpdates();
   } catch (error) {
-    emit({ state: "error", message: error instanceof Error ? error.message : String(error) });
+    emitError(error);
   }
 }
 

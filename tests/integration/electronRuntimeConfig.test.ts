@@ -82,11 +82,10 @@ describe("Electron 런타임 설정", () => {
   it("패널에서 다른 곳으로 포커스가 이동하면 모든 플랫폼에서 창을 숨긴다", () => {
     const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
 
-    expect(main).toContain("function scheduleHideAfterFocusLoss()");
-    expect(main).toContain('window.on("blur"');
-    expect(main).toContain("scheduleHideAfterFocusLoss()");
-    expect(main).toContain("window.isVisible() && !window.isFocused()");
-    expect(main).toContain("window.hide()");
+    expect(main).toContain("new PanelAutoHideController(");
+    expect(main).toContain("attachPanelAutoHideWindowEvents(panelWindow, panelAutoHide)");
+    expect(main).toContain('app.on("did-resign-active"');
+    expect(main).toContain("panelAutoHide?.needsFocusRetry()");
   });
 
   it("새 설정·이력·진단·상태 페이지 IPC를 main과 preload에 동일하게 공개한다", () => {

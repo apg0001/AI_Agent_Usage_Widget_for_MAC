@@ -258,7 +258,13 @@ export type Translations = {
     statusDownloading: (percent: number) => string;
     statusDownloaded: (version: string) => string;
     statusNotAvailable: string;
-    statusError: (message: string) => string;
+    errorHeading: string;
+    errorMetadataMissing: string;
+    errorNetwork: string;
+    errorAccessDenied: string;
+    errorInvalidRelease: string;
+    errorUnknown: string;
+    errorDetails: string;
     manualInstallTitle: string;
     manualInstallBody: string;
     manualInstallCopy: string;
@@ -598,7 +604,13 @@ const ko: Translations = {
     statusDownloading: (percent) => `다운로드 중 ${percent}%`,
     statusDownloaded: (version) => `v${version} 설치 준비 완료`,
     statusNotAvailable: "최신 버전입니다.",
-    statusError: (message) => `업데이트 확인 실패: ${message}`,
+    errorHeading: "업데이트를 확인하지 못했습니다",
+    errorMetadataMissing: "릴리스의 업데이트 파일이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.",
+    errorNetwork: "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
+    errorAccessDenied: "업데이트 서버에 접근할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    errorInvalidRelease: "다운로드한 업데이트 파일을 안전하게 확인하지 못했습니다.",
+    errorUnknown: "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+    errorDetails: "오류 코드",
     manualInstallTitle: "수동 설치가 필요합니다",
     manualInstallBody: "이 환경에서는 설치 권한 창을 띄울 수 없어 자동 설치를 진행할 수 없습니다. 아래 명령어를 터미널에 붙여넣어 직접 설치해 주세요.",
     manualInstallCopy: "명령어 복사",
@@ -930,7 +942,13 @@ const en: Translations = {
     statusDownloading: (percent) => `Downloading ${percent}%`,
     statusDownloaded: (version) => `v${version} ready to install`,
     statusNotAvailable: "You're up to date.",
-    statusError: (message) => `Update check failed: ${message}`,
+    errorHeading: "Couldn't check for updates",
+    errorMetadataMissing: "The release's update files aren't ready yet. Please try again shortly.",
+    errorNetwork: "Check your network connection and try again.",
+    errorAccessDenied: "The update server couldn't be accessed. Please try again shortly.",
+    errorInvalidRelease: "The downloaded update package couldn't be verified safely.",
+    errorUnknown: "A temporary error occurred. Please try again shortly.",
+    errorDetails: "Error code",
     manualInstallTitle: "Manual install required",
     manualInstallBody: "This environment can't show an authorization prompt, so the update can't install itself. Paste this command into a terminal to install it.",
     manualInstallCopy: "Copy command",

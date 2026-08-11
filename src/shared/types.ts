@@ -176,12 +176,25 @@ export type OAuthLoginResult = {
   message: string;
 };
 
+export type UpdateErrorCode = "metadata-missing" | "network" | "access-denied" | "invalid-release" | "unknown";
+
+export type UpdateDiagnosticCode =
+  | "UPDATE_METADATA_MISSING"
+  | "UPDATE_NETWORK"
+  | "UPDATE_ACCESS_DENIED"
+  | "UPDATE_INTEGRITY"
+  | "UPDATE_UNKNOWN";
+
 export type UpdateStatus = {
-  state: "idle" | "checking" | "available" | "downloading" | "downloaded" | "not-available" | "error";
+  state: "idle" | "checking" | "available" | "downloading" | "downloaded" | "not-available";
   version?: string;
   progressPercent?: number;
   message?: string;
   manualInstallCommand?: string;
+} | {
+  state: "error";
+  errorCode: UpdateErrorCode;
+  diagnosticCode: UpdateDiagnosticCode;
 };
 
 export const DEFAULT_METER_COLOR_BANDS: MeterColorBand[] = [

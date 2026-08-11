@@ -68,4 +68,15 @@ describe("설정 UI 레이아웃 계약", () => {
   it("설정 헤더에 특정 운영체제만 지칭하는 부제목을 표시하지 않는다", () => {
     expect(appSource).not.toContain("macOS · Windows 공통");
   });
+
+  it("업데이트 오류는 경고 카드와 접을 수 있는 기술 정보로 분리한다", () => {
+    const updateError = declarationsFor(".update-error");
+    const updateDetailsCode = declarationsFor(".update-error-details code");
+
+    expect(appSource).toContain('className={`update-error update-error-${updateStatus.errorCode}`} role="alert"');
+    expect(appSource).toContain('className="update-error-details"');
+    expect(appSource).toContain("t.updates.errorMetadataMissing");
+    expect(updateError.get("display")).toBe("grid");
+    expect(updateDetailsCode.get("overflow-wrap")).toBe("anywhere");
+  });
 });

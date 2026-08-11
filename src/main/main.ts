@@ -10,6 +10,7 @@ import {
 import { serializeDiagnosticsReport } from "./diagnostics.js";
 import { GenerationRefreshQueue } from "./generationRefreshQueue.js";
 import { getTranslations } from "../shared/i18n.js";
+import { attachPanelAutoHideWindowEvents, PanelAutoHideController } from "./panelAutoHide.js";
 import { getRendererIndexPath } from "./rendererPath.js";
 import { startOAuthLogin } from "./oauthProviders.js";
 import { platformAdapter } from "./platform/index.js";
@@ -50,6 +51,7 @@ import {
 } from "../shared/types.js";
 
 const isDev = !app.isPackaged;
+const showOnLaunch = process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH === "1";
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!hasSingleInstanceLock) {
@@ -61,7 +63,9 @@ let window: BrowserWindow | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let serviceStatusTimer: ReturnType<typeof setInterval> | null = null;
 let updateCheckTimer: ReturnType<typeof setInterval> | null = null;
-let blurHideTimer: ReturnType<typeof setTimeout> | null = null;
+let panelAutoHide: PanelAutoHideController | null = null;
+let detachPanelAutoHideWindowEvents: (() => void) | null = null;
+let panelFocusRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let latestSnapshot: UsageSnapshot | null = null;
 let usageHistoryStore: UsageHistoryStore | null = null;
 let latestServiceStatuses: Partial<Record<ProviderId, RawServiceStatus>> = {};
@@ -77,36 +81,44 @@ const STATUS_PAGE_URLS: Partial<Record<ProviderId, string>> = {
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60_000;
 
 function showWindow() {
-  if (!window) {
+  const panel = window;
+  if (!panel || panel.isDestroyed()) {
     return;
   }
 
-  clearBlurHideTimer();
+  const wasVisible = panel.isVisible();
+  if (!wasVisible) {
+    panelAutoHide?.prepareForShow();
+  }
+  if (panelFocusRetryTimer) {
+    clearTimeout(panelFocusRetryTimer);
+    panelFocusRetryTimer = null;
+  }
   positionWindow();
-  window.show();
-  window.focus();
-  window.moveTop();
-}
+  panel.show();
+  panel.focus();
+  panel.moveTop();
 
-function clearBlurHideTimer() {
-  if (blurHideTimer) {
-    clearTimeout(blurHideTimer);
-    blurHideTimer = null;
+  if (!wasVisible) {
+    panelFocusRetryTimer = setTimeout(() => {
+      panelFocusRetryTimer = null;
+      if (
+        window === panel &&
+        !panel.isDestroyed() &&
+        panel.isVisible() &&
+        panelAutoHide?.needsFocusRetry()
+      ) {
+        const autoHide = panelAutoHide;
+        const focusLossSequence = autoHide?.getFocusLossSequence();
+        const previouslyFocused = panel.isFocused();
+        panel.focus();
+        panel.moveTop();
+        if (focusLossSequence !== undefined) {
+          autoHide?.confirmFocusRetry(previouslyFocused, focusLossSequence);
+        }
+      }
+    }, 0);
   }
-}
-
-function scheduleHideAfterFocusLoss() {
-  if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH || activeNotifications > 0) {
-    return;
-  }
-
-  clearBlurHideTimer();
-  blurHideTimer = setTimeout(() => {
-    blurHideTimer = null;
-    if (window && !window.isDestroyed() && window.isVisible() && !window.isFocused() && activeNotifications === 0) {
-      window.hide();
-    }
-  }, 100);
 }
 
 async function createStaticTrayIcon() {
@@ -141,8 +153,16 @@ function createWindow() {
     }
   });
 
+  const panelWindow = window;
+  detachPanelAutoHideWindowEvents?.();
+  panelAutoHide = new PanelAutoHideController(
+    () => (window === panelWindow ? panelWindow : null),
+    { showGraceMs: platformAdapter.id === "windows" ? 350 : 0 }
+  );
+  detachPanelAutoHideWindowEvents = attachPanelAutoHideWindowEvents(panelWindow, panelAutoHide);
+
   window.once("ready-to-show", () => {
-    if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
+    if (showOnLaunch) {
       showWindow();
     }
   });
@@ -158,7 +178,7 @@ function createWindow() {
   });
 
   window.webContents.once("did-finish-load", () => {
-    if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH && !window?.isVisible()) {
+    if (showOnLaunch && !window?.isVisible()) {
       showWindow();
     }
   });
@@ -169,35 +189,22 @@ function createWindow() {
     void window.loadFile(getRendererIndexPath(__dirname));
   }
 
-  window.on("blur", () => {
-    scheduleHideAfterFocusLoss();
+  panelWindow.once("closed", () => {
+    if (window !== panelWindow) {
+      return;
+    }
+    if (panelFocusRetryTimer) {
+      clearTimeout(panelFocusRetryTimer);
+      panelFocusRetryTimer = null;
+    }
+    detachPanelAutoHideWindowEvents = null;
+    panelAutoHide = null;
+    window = null;
   });
-  window.on("hide", clearBlurHideTimer);
-}
-
-let activeNotifications = 0;
-
-function releaseNotification() {
-  activeNotifications = Math.max(0, activeNotifications - 1);
-  if (activeNotifications === 0 && window && !window.isDestroyed() && window.isVisible()) {
-    window.focus();
-  }
 }
 
 function showNotification(options: Electron.NotificationConstructorOptions) {
   const notification = new Notification(options);
-  activeNotifications += 1;
-  let settled = false;
-  const release = () => {
-    if (settled) {
-      return;
-    }
-    settled = true;
-    releaseNotification();
-  };
-  notification.once("close", release);
-  notification.once("click", release);
-  notification.once("failed", release);
   notification.show();
 }
 
@@ -512,6 +519,10 @@ function registerIpc() {
 }
 
 if (hasSingleInstanceLock) {
+  if (platformAdapter.id === "mac") {
+    app.on("did-resign-active", () => panelAutoHide?.handleFocusLost());
+  }
+
   app.on("second-instance", () => {
     showWindow();
   });
@@ -548,13 +559,16 @@ if (hasSingleInstanceLock) {
         void checkForUpdates();
       }, UPDATE_CHECK_INTERVAL_MS);
     }
-    if (process.env.AI_USAGE_WIDGET_SHOW_ON_LAUNCH) {
+    if (showOnLaunch) {
       setTimeout(showWindow, 500);
     }
   });
 }
 
 app.on("window-all-closed", () => {
+  detachPanelAutoHideWindowEvents?.();
+  detachPanelAutoHideWindowEvents = null;
+  panelAutoHide = null;
   window = null;
 });
 
@@ -568,8 +582,12 @@ app.on("before-quit", () => {
   if (updateCheckTimer) {
     clearInterval(updateCheckTimer);
   }
-  if (blurHideTimer) {
-    clearTimeout(blurHideTimer);
+  if (panelFocusRetryTimer) {
+    clearTimeout(panelFocusRetryTimer);
+    panelFocusRetryTimer = null;
   }
+  detachPanelAutoHideWindowEvents?.();
+  detachPanelAutoHideWindowEvents = null;
+  panelAutoHide = null;
   destroyTrayIconRenderer();
 });
