@@ -56,6 +56,7 @@ export type ProviderUsage = {
   sourceInfo?: UsageSourceInfo;
   serviceStatus?: ProviderServiceStatus;
   windows?: UsageLimitWindow[];
+  accountLabel?: string;
 };
 
 export type UsageLimitWindow = {

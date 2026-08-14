@@ -490,6 +490,84 @@ function readCodexAccessToken() {
   }
 }
 
+function decodeJwtEmail(token?: string): string | undefined {
+  if (!token) {
+    return undefined;
+  }
+  const payload = token.split(".")[1];
+  if (!payload) {
+    return undefined;
+  }
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const json = Buffer.from(normalized, "base64").toString("utf8");
+    const claims = JSON.parse(json) as { email?: string };
+    return typeof claims.email === "string" ? claims.email : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readCodexAccountEmail(): string | undefined {
+  const authPath = path.join(codexConfigDirectory(), "auth.json");
+  if (!existsSync(authPath)) {
+    return undefined;
+  }
+
+  try {
+    const auth = JSON.parse(readFileSync(authPath, "utf8")) as { tokens?: { id_token?: string } };
+    return decodeJwtEmail(auth.tokens?.id_token);
+  } catch {
+    return undefined;
+  }
+}
+
+function readClaudeAccountEmail(): string | undefined {
+  const configPath = path.join(homedir(), ".claude.json");
+  if (!existsSync(configPath)) {
+    return undefined;
+  }
+
+  try {
+    const config = JSON.parse(readFileSync(configPath, "utf8")) as {
+      oauthAccount?: { emailAddress?: string };
+    };
+    return config.oauthAccount?.emailAddress;
+  } catch {
+    return undefined;
+  }
+}
+
+function readGeminiAccountEmail(): string | undefined {
+  const credentialsPath = path.join(homedir(), ".gemini", "oauth_creds.json");
+  if (!existsSync(credentialsPath)) {
+    return undefined;
+  }
+
+  try {
+    const credentials = JSON.parse(readFileSync(credentialsPath, "utf8")) as { id_token?: string };
+    return decodeJwtEmail(credentials.id_token);
+  } catch {
+    return undefined;
+  }
+}
+
+function readAccountEmail(provider: ProviderId): string | undefined {
+  if (!isLocalProviderDetectionEnabled()) {
+    return undefined;
+  }
+  if (provider === "codex") {
+    return readCodexAccountEmail();
+  }
+  if (provider === "claude") {
+    return readClaudeAccountEmail();
+  }
+  if (provider === "gemini") {
+    return readGeminiAccountEmail();
+  }
+  return undefined;
+}
+
 async function fetchCodexUsage(savedAccessToken: string | undefined, language: Language) {
   const accessToken = savedAccessToken ?? readCodexAccessToken();
   if (!accessToken) {
@@ -1090,11 +1168,17 @@ export async function fetchUsageSnapshot(settings: AppSettings): Promise<Provide
         const result = await adapter.fetchUsage(providerSettings.auth, language);
         const receivedAt = new Date().toISOString();
         const observedAt = result.dataUpdatedAt;
+        const accountLabel = result.connectionStatus === "connected"
+          ? result.accountLabel ?? providerSettings.auth?.accountLabel ?? (
+              providerSettings.auth ? undefined : readAccountEmail(adapter.id)
+            )
+          : undefined;
         return {
           provider: adapter.id,
           label: adapter.label,
           updatedAt: receivedAt,
           ...result,
+          accountLabel,
           sourceInfo: result.sourceInfo ?? sourceInfo(result, adapter.label, language),
           freshness: {
             observedAt,

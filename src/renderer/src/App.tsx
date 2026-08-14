@@ -453,7 +453,7 @@ function AuthActions({
   const inferredConnection = hasSavedAuth || ["local", "api", "token"].includes(usage.source ?? "");
   const connected = usage.connectionStatus ? usage.connectionStatus === "connected" : inferredConnection;
 
-  if (connected && !hasSavedAuth) {
+  if (connected && !hasSavedAuth && !usage.accountLabel) {
     return null;
   }
 
@@ -471,6 +471,7 @@ function AuthActions({
           </button>
         ) : null}
       </div>
+      {connected && usage.accountLabel ? <p className="supporting-text account-label">{usage.accountLabel}</p> : null}
       {!connected ? <p className="supporting-text">{t.loginHelp[usage.provider]}</p> : null}
       {!connected && usage.provider === "codex" ? (
         <TokenLoginForm provider={usage.provider} busy={busy} onTokenLogin={onTokenLogin} />
