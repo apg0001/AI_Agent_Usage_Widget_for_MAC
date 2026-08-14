@@ -84,11 +84,38 @@ describe("앱 업데이트 오류 경계", () => {
     expect(listener).toHaveBeenLastCalledWith({
       state: "downloaded",
       version: "0.4.3",
-      manualInstallCommand: "sudo dpkg -i '/tmp/GigaCharge update'\\''s.deb'"
+      manualInstallCommand: "sudo apt install -y '/tmp/GigaCharge update'\\''s.deb'"
     });
 
     updater.quitAndInstallUpdate();
     expect(updaterMock.quitAndInstall).not.toHaveBeenCalled();
+  });
+
+  it("deb 외 리눅스 패키지에도 해당 패키지 관리자 명령을 안내한다", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "linux"
+    });
+    delete process.env.APPIMAGE;
+
+    const updater = await import("../../src/main/appUpdater");
+    updater.initAutoUpdate();
+
+    updaterMock.handlers.get("update-downloaded")?.({
+      version: "0.4.3",
+      downloadedFile: "/tmp/GigaCharge.rpm"
+    });
+    expect(updater.getLatestUpdateStatus()).toMatchObject({
+      manualInstallCommand: "sudo rpm -U '/tmp/GigaCharge.rpm'"
+    });
+
+    updaterMock.handlers.get("update-downloaded")?.({
+      version: "0.4.3",
+      downloadedFile: "/tmp/GigaCharge.pacman"
+    });
+    expect(updater.getLatestUpdateStatus()).toMatchObject({
+      manualInstallCommand: "sudo pacman -U '/tmp/GigaCharge.pacman'"
+    });
   });
 
   it("Linux AppImage는 기존 자동 설치 경로를 유지한다", async () => {

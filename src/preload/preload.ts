@@ -49,6 +49,7 @@ const api = {
   getUpdateStatus: () => ipcRenderer.invoke("app:get-update-status") as Promise<UpdateStatus>,
   checkForUpdates: () => ipcRenderer.invoke("app:check-for-updates") as Promise<void>,
   quitAndInstallUpdate: () => ipcRenderer.invoke("app:quit-and-install-update") as Promise<void>,
+  restartApp: () => ipcRenderer.invoke("app:restart") as Promise<void>,
   onUsageSnapshot: (callback: (snapshot: UsageSnapshot) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: UsageSnapshot) => callback(snapshot);
     ipcRenderer.on("usage:snapshot", listener);

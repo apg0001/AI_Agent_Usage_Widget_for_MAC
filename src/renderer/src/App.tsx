@@ -1062,7 +1062,8 @@ function SettingsView({
   onCopyDiagnostics,
   onCheckForUpdates,
   onInstallUpdate,
-  onCopyUpdateCommand
+  onCopyUpdateCommand,
+  onRestartApp
 }: {
   snapshot: UsageSnapshot;
   launchAtLogin: boolean;
@@ -1084,6 +1085,7 @@ function SettingsView({
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
   onCopyUpdateCommand: (command: string) => void;
+  onRestartApp: () => void;
 }) {
   const { t, bands } = useI18n();
   const sortedBands = [...bands].sort((a, b) => a.upTo - b.upTo);
@@ -1469,6 +1471,11 @@ function SettingsView({
                   <Clipboard size={15} aria-hidden="true" />
                   {t.updates.manualInstallCopy}
                 </button>
+                <small>{t.updates.manualInstallRestartHint}</small>
+                <button className="primary-button full-button" type="button" onClick={onRestartApp}>
+                  <RefreshCw size={15} aria-hidden="true" />
+                  {t.updates.manualInstallRestart}
+                </button>
               </div>
             ) : updateStatus.state === "downloaded" ? (
               <button className="primary-button full-button" type="button" onClick={onInstallUpdate}>
@@ -1771,6 +1778,10 @@ export default function App() {
     void window.aiUsage.quitAndInstallUpdate();
   }
 
+  function restartApp() {
+    void window.aiUsage.restartApp();
+  }
+
   async function copyUpdateCommand(command: string) {
     setBusy(true);
     try {
@@ -1840,6 +1851,7 @@ export default function App() {
             onCheckForUpdates={checkForUpdates}
             onInstallUpdate={installUpdate}
             onCopyUpdateCommand={(command) => void copyUpdateCommand(command)}
+            onRestartApp={restartApp}
           />
         </main>
       </I18nContext.Provider>

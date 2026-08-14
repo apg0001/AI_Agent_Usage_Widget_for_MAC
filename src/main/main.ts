@@ -516,6 +516,12 @@ function registerIpc() {
   ipcMain.handle("app:get-update-status", () => getLatestUpdateStatus());
   ipcMain.handle("app:check-for-updates", () => checkForUpdates());
   ipcMain.handle("app:quit-and-install-update", () => quitAndInstallUpdate());
+  ipcMain.handle("app:restart", () => {
+    // 리눅스 수동 설치는 새 파일이 이미 디스크에 깔려 있어도 실행 중인 프로세스는
+    // 옛 버전 그대로다. 새 실행 파일로 다시 뜨려면 `relaunch`가 필요하다.
+    app.relaunch();
+    app.exit(0);
+  });
 }
 
 if (hasSingleInstanceLock) {

@@ -269,6 +269,8 @@ export type Translations = {
     manualInstallBody: string;
     manualInstallCopy: string;
     manualInstallCopied: string;
+    manualInstallRestartHint: string;
+    manualInstallRestart: string;
   };
   notices: {
     launchAtLoginCheckFailed: string;
@@ -612,9 +614,11 @@ const ko: Translations = {
     errorUnknown: "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
     errorDetails: "오류 코드",
     manualInstallTitle: "수동 설치가 필요합니다",
-    manualInstallBody: "이 환경에서는 설치 권한 창을 띄울 수 없어 자동 설치를 진행할 수 없습니다. 아래 명령어를 터미널에 붙여넣어 직접 설치해 주세요.",
+    manualInstallBody: "자동 설치에 실패했습니다. 아래 명령어를 터미널에 붙여넣어 수동으로 설치하세요.",
     manualInstallCopy: "명령어 복사",
-    manualInstallCopied: "명령어가 복사됐습니다."
+    manualInstallCopied: "명령어가 복사됐습니다.",
+    manualInstallRestartHint: "설치를 마친 뒤 앱을 재시작해야 새 버전이 적용됩니다.",
+    manualInstallRestart: "앱 재시작"
   },
   notices: {
     launchAtLoginCheckFailed: "자동 실행 상태를 확인하지 못했습니다.",
@@ -950,9 +954,11 @@ const en: Translations = {
     errorUnknown: "A temporary error occurred. Please try again shortly.",
     errorDetails: "Error code",
     manualInstallTitle: "Manual install required",
-    manualInstallBody: "This environment can't show an authorization prompt, so the update can't install itself. Paste this command into a terminal to install it.",
+    manualInstallBody: "Auto-install failed. Please copy the command below and run it in a terminal to install the update.",
     manualInstallCopy: "Copy command",
-    manualInstallCopied: "Command copied."
+    manualInstallCopied: "Command copied.",
+    manualInstallRestartHint: "Once the command finishes, restart the app to run the new version.",
+    manualInstallRestart: "Restart app"
   },
   notices: {
     launchAtLoginCheckFailed: "Couldn't check the launch-at-login status.",

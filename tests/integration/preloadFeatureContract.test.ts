@@ -30,6 +30,7 @@ type FeatureApi = {
   copyDiagnostics: () => Promise<unknown>;
   copyText: (text: string) => Promise<unknown>;
   openStatusPage: (provider: ProviderId) => Promise<unknown>;
+  restartApp: () => Promise<unknown>;
 };
 
 let api: FeatureApi;
@@ -82,13 +83,19 @@ describe("preload 신규 기능 계약", () => {
 
   it("진단 복사와 공식 상태 페이지 열기를 구분한다", async () => {
     await api.copyDiagnostics();
-    await api.copyText("sudo dpkg -i '/tmp/GigaCharge.deb'");
+    await api.copyText("sudo apt install -y '/tmp/GigaCharge.deb'");
     await api.openStatusPage("claude");
 
     expect(electronMocks.invoke.mock.calls).toEqual([
       ["app:copy-diagnostics"],
-      ["app:copy-text", "sudo dpkg -i '/tmp/GigaCharge.deb'"],
+      ["app:copy-text", "sudo apt install -y '/tmp/GigaCharge.deb'"],
       ["app:open-status-page", "claude"]
     ]);
+  });
+
+  it("수동 설치 후 재시작은 자동 설치와 다른 채널을 쓴다", async () => {
+    await api.restartApp();
+
+    expect(electronMocks.invoke.mock.calls).toEqual([["app:restart"]]);
   });
 });

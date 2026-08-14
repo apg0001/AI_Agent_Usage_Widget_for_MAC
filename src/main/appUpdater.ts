@@ -24,6 +24,18 @@ function quoteShellPath(filePath: string): string {
   return `'${filePath.replace(/'/g, "'\\''")}'`;
 }
 
+function buildManualInstallCommand(downloadedFile: string): string {
+  const target = quoteShellPath(downloadedFile);
+  if (downloadedFile.endsWith(".rpm")) {
+    return `sudo rpm -U ${target}`;
+  }
+  if (downloadedFile.endsWith(".pacman")) {
+    return `sudo pacman -U ${target}`;
+  }
+  // apt는 dpkg와 달리 새로 추가된 의존성까지 함께 설치해 준다.
+  return `sudo apt install -y ${target}`;
+}
+
 function emit(status: UpdateStatus) {
   if (status.state !== "error") {
     lastErrorKey = "";
@@ -70,7 +82,7 @@ export function initAutoUpdate() {
   autoUpdater.on("update-downloaded", (info) => emit({
     state: "downloaded",
     version: info.version,
-    manualInstallCommand: isLinuxManualInstall ? `sudo dpkg -i ${quoteShellPath(info.downloadedFile)}` : undefined
+    manualInstallCommand: isLinuxManualInstall ? buildManualInstallCommand(info.downloadedFile) : undefined
   }));
   autoUpdater.on("error", emitError);
 
