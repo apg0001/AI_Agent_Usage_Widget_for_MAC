@@ -192,6 +192,7 @@ export type UpdateStatus = {
   progressPercent?: number;
   message?: string;
   manualInstallCommand?: string;
+  manualInstallPath?: string;
 } | {
   state: "error";
   errorCode: UpdateErrorCode;

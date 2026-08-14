@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import { getTranslations } from "../shared/i18n.js";
 import { UpdateStatus } from "../shared/types.js";
@@ -19,6 +19,12 @@ let lastErrorAt = 0;
 // 않고 사용자가 직접 실행할 수 있는 설치 명령을 안내한다. AppImage는 파일 자체를
 // 사용자 권한으로 교체하는 방식이라 root가 필요 없어 해당 없음(APPIMAGE 환경 변수로 판별).
 const isLinuxManualInstall = process.platform === "linux" && !process.env.APPIMAGE;
+
+// macOS 빌드는 코드사이닝/공증 없이 배포되는데, electron-updater의 mac 설치 단계(Squirrel.Mac)는
+// 실행 중인 앱과 새 번들의 서명이 일치해야만 자동 설치를 진행한다. 다운로드 자체는 서명 검증 없이
+// 일반 HTTPS로 이뤄지므로, 설치만 건너뛰고 받아둔 zip 위치를 안내해 사용자가 직접 교체하게 한다.
+const isMacManualInstall = process.platform === "darwin";
+const isManualInstall = isLinuxManualInstall || isMacManualInstall;
 
 function quoteShellPath(filePath: string): string {
   return `'${filePath.replace(/'/g, "'\\''")}'`;
@@ -72,8 +78,9 @@ export function initAutoUpdate() {
   initialized = true;
 
   autoUpdater.autoDownload = true;
-  // 리눅스 수동 설치 케이스는 앱 종료 시점에도 pkexec를 자동으로 걸지 않는다(위 주석 참고).
-  autoUpdater.autoInstallOnAppQuit = !isLinuxManualInstall;
+  // 수동 설치 케이스(리눅스 root 필요 조합, macOS 미서명 빌드)는 앱 종료 시점에도
+  // 설치를 자동으로 걸지 않는다(위 주석 참고).
+  autoUpdater.autoInstallOnAppQuit = !isManualInstall;
 
   autoUpdater.on("checking-for-update", () => emit({ state: "checking" }));
   autoUpdater.on("update-available", (info) => emit({ state: "available", version: info.version }));
@@ -82,7 +89,8 @@ export function initAutoUpdate() {
   autoUpdater.on("update-downloaded", (info) => emit({
     state: "downloaded",
     version: info.version,
-    manualInstallCommand: isLinuxManualInstall ? buildManualInstallCommand(info.downloadedFile) : undefined
+    manualInstallCommand: isLinuxManualInstall ? buildManualInstallCommand(info.downloadedFile) : undefined,
+    manualInstallPath: isMacManualInstall ? info.downloadedFile : undefined
   }));
   autoUpdater.on("error", emitError);
 
@@ -104,10 +112,18 @@ export async function checkForUpdates(): Promise<void> {
 }
 
 export function quitAndInstallUpdate() {
-  if (isLinuxManualInstall) {
-    // pkexec가 이 세션에서 응답 없이 멈출 수 있어 자동 설치를 걸지 않는다. 설치 안내는
-    // update-downloaded 시점에 이미 manualInstallCommand로 전달했다.
+  if (isManualInstall) {
+    // 리눅스는 pkexec가 세션에 따라 응답 없이 멈출 수 있고, macOS는 미서명 빌드라
+    // Squirrel.Mac이 자동 설치를 거부한다. 설치 안내는 update-downloaded 시점에
+    // 이미 manualInstallCommand/manualInstallPath로 전달했다.
     return;
   }
   autoUpdater.quitAndInstall();
+}
+
+export function revealDownloadedUpdate() {
+  const path = latestStatus.state === "downloaded" ? latestStatus.manualInstallPath : undefined;
+  if (path) {
+    shell.showItemInFolder(path);
+  }
 }

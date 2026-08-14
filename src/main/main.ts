@@ -5,7 +5,8 @@ import {
   getLatestUpdateStatus,
   initAutoUpdate,
   onUpdateStatusChange,
-  quitAndInstallUpdate
+  quitAndInstallUpdate,
+  revealDownloadedUpdate
 } from "./appUpdater.js";
 import { serializeDiagnosticsReport } from "./diagnostics.js";
 import { GenerationRefreshQueue } from "./generationRefreshQueue.js";
@@ -516,8 +517,9 @@ function registerIpc() {
   ipcMain.handle("app:get-update-status", () => getLatestUpdateStatus());
   ipcMain.handle("app:check-for-updates", () => checkForUpdates());
   ipcMain.handle("app:quit-and-install-update", () => quitAndInstallUpdate());
+  ipcMain.handle("app:reveal-downloaded-update", () => revealDownloadedUpdate());
   ipcMain.handle("app:restart", () => {
-    // 리눅스 수동 설치는 새 파일이 이미 디스크에 깔려 있어도 실행 중인 프로세스는
+    // 수동 설치는 새 파일이 이미 디스크에 깔려 있어도 실행 중인 프로세스는
     // 옛 버전 그대로다. 새 실행 파일로 다시 뜨려면 `relaunch`가 필요하다.
     app.relaunch();
     app.exit(0);
@@ -554,17 +556,13 @@ if (hasSingleInstanceLock) {
       void refreshServiceStatuses();
     }, 5 * 60_000);
     restartRefreshTimer();
-    if (platformAdapter.id !== "mac") {
-      // macOS 빌드는 아직 코드사이닝/공증이 없어 자동 업데이트를 지원하지 않는다.
-      // 기능을 다시 켜기 전까지 백그라운드 업데이트 체크 자체를 돌리지 않는다.
-      onUpdateStatusChange((status) => {
-        window?.webContents.send("update:status", status);
-      });
-      initAutoUpdate();
-      updateCheckTimer = setInterval(() => {
-        void checkForUpdates();
-      }, UPDATE_CHECK_INTERVAL_MS);
-    }
+    onUpdateStatusChange((status) => {
+      window?.webContents.send("update:status", status);
+    });
+    initAutoUpdate();
+    updateCheckTimer = setInterval(() => {
+      void checkForUpdates();
+    }, UPDATE_CHECK_INTERVAL_MS);
     if (showOnLaunch) {
       setTimeout(showWindow, 500);
     }

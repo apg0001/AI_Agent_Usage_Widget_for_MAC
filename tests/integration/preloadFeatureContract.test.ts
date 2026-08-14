@@ -31,6 +31,7 @@ type FeatureApi = {
   copyText: (text: string) => Promise<unknown>;
   openStatusPage: (provider: ProviderId) => Promise<unknown>;
   restartApp: () => Promise<unknown>;
+  revealDownloadedUpdate: () => Promise<unknown>;
 };
 
 let api: FeatureApi;
@@ -97,5 +98,11 @@ describe("preload 신규 기능 계약", () => {
     await api.restartApp();
 
     expect(electronMocks.invoke.mock.calls).toEqual([["app:restart"]]);
+  });
+
+  it("macOS 수동 설치 안내는 다운로드된 파일을 Finder에 노출하는 채널을 쓴다", async () => {
+    await api.revealDownloadedUpdate();
+
+    expect(electronMocks.invoke.mock.calls).toEqual([["app:reveal-downloaded-update"]]);
   });
 });

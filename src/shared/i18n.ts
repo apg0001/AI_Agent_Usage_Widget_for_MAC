@@ -271,6 +271,9 @@ export type Translations = {
     manualInstallCopied: string;
     manualInstallRestartHint: string;
     manualInstallRestart: string;
+    manualInstallMacTitle: string;
+    manualInstallMacBody: string;
+    manualInstallMacReveal: string;
   };
   notices: {
     launchAtLoginCheckFailed: string;
@@ -618,7 +621,10 @@ const ko: Translations = {
     manualInstallCopy: "명령어 복사",
     manualInstallCopied: "명령어가 복사됐습니다.",
     manualInstallRestartHint: "설치를 마친 뒤 앱을 재시작해야 새 버전이 적용됩니다.",
-    manualInstallRestart: "앱 재시작"
+    manualInstallRestart: "앱 재시작",
+    manualInstallMacTitle: "수동 설치가 필요합니다",
+    manualInstallMacBody: "새 버전을 다운로드했습니다. 압축 파일을 열어 앱을 Applications 폴더로 드래그해 덮어써 주세요.",
+    manualInstallMacReveal: "Finder에서 보기"
   },
   notices: {
     launchAtLoginCheckFailed: "자동 실행 상태를 확인하지 못했습니다.",
@@ -958,7 +964,10 @@ const en: Translations = {
     manualInstallCopy: "Copy command",
     manualInstallCopied: "Command copied.",
     manualInstallRestartHint: "Once the command finishes, restart the app to run the new version.",
-    manualInstallRestart: "Restart app"
+    manualInstallRestart: "Restart app",
+    manualInstallMacTitle: "Manual install required",
+    manualInstallMacBody: "The new version has been downloaded. Open the archive and drag the app into Applications to overwrite the old one.",
+    manualInstallMacReveal: "Show in Finder"
   },
   notices: {
     launchAtLoginCheckFailed: "Couldn't check the launch-at-login status.",

@@ -7,6 +7,7 @@ import {
   CircleHelp,
   Clipboard,
   ExternalLink,
+  FolderOpen,
   KeyRound,
   LogOut,
   Plus,
@@ -1063,6 +1064,7 @@ function SettingsView({
   onCheckForUpdates,
   onInstallUpdate,
   onCopyUpdateCommand,
+  onRevealUpdateFile,
   onRestartApp
 }: {
   snapshot: UsageSnapshot;
@@ -1085,6 +1087,7 @@ function SettingsView({
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
   onCopyUpdateCommand: (command: string) => void;
+  onRevealUpdateFile: () => void;
   onRestartApp: () => void;
 }) {
   const { t, bands } = useI18n();
@@ -1431,70 +1434,85 @@ function SettingsView({
           </button>
         </section>
 
-        {window.aiUsage.platform === "darwin" ? null : (
-          <section className="settings-section diagnostics-section" aria-labelledby="updates-heading">
-            <div className="settings-heading">
-              <span className="eyebrow">{t.updates.eyebrow}</span>
-              <h2 id="updates-heading">{t.updates.heading}</h2>
-            </div>
-            <p className="update-version">{t.updates.currentVersion(appVersion)}</p>
-            {updateStatus.state === "error" ? (
-              <div className={`update-error update-error-${updateStatus.errorCode}`} role="alert">
-                <div className="update-error-message">
-                  <CircleAlert size={17} aria-hidden="true" />
-                  <div>
-                    <strong>{t.updates.errorHeading}</strong>
-                    <p>{updateStatusText(t, updateStatus)}</p>
-                  </div>
+        <section className="settings-section diagnostics-section" aria-labelledby="updates-heading">
+          <div className="settings-heading">
+            <span className="eyebrow">{t.updates.eyebrow}</span>
+            <h2 id="updates-heading">{t.updates.heading}</h2>
+          </div>
+          <p className="update-version">{t.updates.currentVersion(appVersion)}</p>
+          {updateStatus.state === "error" ? (
+            <div className={`update-error update-error-${updateStatus.errorCode}`} role="alert">
+              <div className="update-error-message">
+                <CircleAlert size={17} aria-hidden="true" />
+                <div>
+                  <strong>{t.updates.errorHeading}</strong>
+                  <p>{updateStatusText(t, updateStatus)}</p>
                 </div>
-                <details className="update-error-details">
-                  <summary>{t.updates.errorDetails}</summary>
-                  <code>{updateStatus.diagnosticCode}</code>
-                </details>
               </div>
-            ) : updateStatusText(t, updateStatus) ? (
-              <p className="update-status" role="status">{updateStatusText(t, updateStatus)}</p>
-            ) : null}
-            {updateStatus.state === "downloaded" && updateStatus.manualInstallCommand ? (
-              <div className="manual-update-install">
-                <p>
-                  <strong>{t.updates.manualInstallTitle}</strong>
-                  <br />
-                  {t.updates.manualInstallBody}
-                </p>
-                <code>{updateStatus.manualInstallCommand}</code>
-                <button
-                  className="secondary-button full-button"
-                  type="button"
-                  onClick={() => onCopyUpdateCommand(updateStatus.manualInstallCommand!)}
-                >
-                  <Clipboard size={15} aria-hidden="true" />
-                  {t.updates.manualInstallCopy}
-                </button>
-                <small>{t.updates.manualInstallRestartHint}</small>
-                <button className="primary-button full-button" type="button" onClick={onRestartApp}>
-                  <RefreshCw size={15} aria-hidden="true" />
-                  {t.updates.manualInstallRestart}
-                </button>
-              </div>
-            ) : updateStatus.state === "downloaded" ? (
-              <button className="primary-button full-button" type="button" onClick={onInstallUpdate}>
-                <RefreshCw size={15} aria-hidden="true" />
-                {t.updates.restartAndInstall}
-              </button>
-            ) : (
+              <details className="update-error-details">
+                <summary>{t.updates.errorDetails}</summary>
+                <code>{updateStatus.diagnosticCode}</code>
+              </details>
+            </div>
+          ) : updateStatusText(t, updateStatus) ? (
+            <p className="update-status" role="status">{updateStatusText(t, updateStatus)}</p>
+          ) : null}
+          {updateStatus.state === "downloaded" && updateStatus.manualInstallCommand ? (
+            <div className="manual-update-install">
+              <p>
+                <strong>{t.updates.manualInstallTitle}</strong>
+                <br />
+                {t.updates.manualInstallBody}
+              </p>
+              <code>{updateStatus.manualInstallCommand}</code>
               <button
                 className="secondary-button full-button"
                 type="button"
-                disabled={busy || updateStatus.state === "checking" || updateStatus.state === "downloading"}
-                onClick={onCheckForUpdates}
+                onClick={() => onCopyUpdateCommand(updateStatus.manualInstallCommand!)}
               >
-                <RefreshCw size={15} aria-hidden="true" />
-                {t.updates.check}
+                <Clipboard size={15} aria-hidden="true" />
+                {t.updates.manualInstallCopy}
               </button>
-            )}
-          </section>
-        )}
+              <small>{t.updates.manualInstallRestartHint}</small>
+              <button className="primary-button full-button" type="button" onClick={onRestartApp}>
+                <RefreshCw size={15} aria-hidden="true" />
+                {t.updates.manualInstallRestart}
+              </button>
+            </div>
+          ) : updateStatus.state === "downloaded" && updateStatus.manualInstallPath ? (
+            <div className="manual-update-install">
+              <p>
+                <strong>{t.updates.manualInstallMacTitle}</strong>
+                <br />
+                {t.updates.manualInstallMacBody}
+              </p>
+              <button className="secondary-button full-button" type="button" onClick={onRevealUpdateFile}>
+                <FolderOpen size={15} aria-hidden="true" />
+                {t.updates.manualInstallMacReveal}
+              </button>
+              <small>{t.updates.manualInstallRestartHint}</small>
+              <button className="primary-button full-button" type="button" onClick={onRestartApp}>
+                <RefreshCw size={15} aria-hidden="true" />
+                {t.updates.manualInstallRestart}
+              </button>
+            </div>
+          ) : updateStatus.state === "downloaded" ? (
+            <button className="primary-button full-button" type="button" onClick={onInstallUpdate}>
+              <RefreshCw size={15} aria-hidden="true" />
+              {t.updates.restartAndInstall}
+            </button>
+          ) : (
+            <button
+              className="secondary-button full-button"
+              type="button"
+              disabled={busy || updateStatus.state === "checking" || updateStatus.state === "downloading"}
+              onClick={onCheckForUpdates}
+            >
+              <RefreshCw size={15} aria-hidden="true" />
+              {t.updates.check}
+            </button>
+          )}
+        </section>
       </div>
 
       {notice ? <p className="toast" role="status">{notice}</p> : null}
@@ -1782,6 +1800,10 @@ export default function App() {
     void window.aiUsage.restartApp();
   }
 
+  function revealUpdateFile() {
+    void window.aiUsage.revealDownloadedUpdate();
+  }
+
   async function copyUpdateCommand(command: string) {
     setBusy(true);
     try {
@@ -1851,6 +1873,7 @@ export default function App() {
             onCheckForUpdates={checkForUpdates}
             onInstallUpdate={installUpdate}
             onCopyUpdateCommand={(command) => void copyUpdateCommand(command)}
+            onRevealUpdateFile={revealUpdateFile}
             onRestartApp={restartApp}
           />
         </main>

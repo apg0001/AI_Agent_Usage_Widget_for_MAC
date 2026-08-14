@@ -23,8 +23,13 @@ const updaterMock = vi.hoisted(() => {
   };
 });
 
+const shellMock = vi.hoisted(() => ({
+  showItemInFolder: vi.fn()
+}));
+
 vi.mock("electron", () => ({
-  app: { isPackaged: true }
+  app: { isPackaged: true },
+  shell: shellMock
 }));
 
 vi.mock("electron-updater", () => ({
@@ -47,6 +52,7 @@ describe("앱 업데이트 오류 경계", () => {
     updaterMock.quitAndInstall.mockClear();
     updaterMock.autoUpdater.autoDownload = false;
     updaterMock.autoUpdater.autoInstallOnAppQuit = false;
+    shellMock.showItemInFolder.mockClear();
   });
 
   afterEach(() => {
@@ -142,6 +148,39 @@ describe("앱 업데이트 오류 경계", () => {
 
     updater.quitAndInstallUpdate();
     expect(updaterMock.quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it("macOS는 미서명 빌드라 자동 설치를 끄고 다운로드된 zip 경로만 안내한다", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "darwin"
+    });
+
+    const updater = await import("../../src/main/appUpdater");
+    const listener = vi.fn();
+    updater.onUpdateStatusChange(listener);
+    updater.initAutoUpdate();
+
+    expect(updaterMock.autoUpdater.autoDownload).toBe(true);
+    expect(updaterMock.autoUpdater.autoInstallOnAppQuit).toBe(false);
+
+    updaterMock.handlers.get("update-downloaded")?.({
+      version: "0.4.3",
+      downloadedFile: "/tmp/update.zip"
+    });
+
+    expect(listener).toHaveBeenLastCalledWith({
+      state: "downloaded",
+      version: "0.4.3",
+      manualInstallCommand: undefined,
+      manualInstallPath: "/tmp/update.zip"
+    });
+
+    updater.quitAndInstallUpdate();
+    expect(updaterMock.quitAndInstall).not.toHaveBeenCalled();
+
+    updater.revealDownloadedUpdate();
+    expect(shellMock.showItemInFolder).toHaveBeenCalledWith("/tmp/update.zip");
   });
 
   it("autoUpdater error 이벤트에서 원문·스택·비밀값을 renderer 상태로 보내지 않는다", async () => {
