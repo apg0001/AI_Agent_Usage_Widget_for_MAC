@@ -182,6 +182,43 @@ describe("Claude 사용량 폴링", () => {
     expect(claude.message).toContain("토큰 갱신을 기다리는 중");
   });
 
+  it("401 후 refresh 토큰으로 access token을 직접 갱신해 사용량을 복구한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(401))
+      .mockResolvedValueOnce(
+        new globalThis.Response(
+          JSON.stringify({ access_token: "token-b", refresh_token: "refresh-account-b", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(usageResponse(42));
+    vi.stubGlobal("fetch", fetchMock);
+    const { fetchUsageSnapshot } = await loadUsageProviders();
+
+    const [claude] = await fetchUsageSnapshot(claudeOnlySettings);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(claude.percent).toBe(42);
+    expect(claude.connectionStatus).toBe("connected");
+    expect(claude.status).not.toBe("signed-out");
+  });
+
+  it("refresh 요청이 400(invalid_grant)이면 실제 로그인 만료로 표시한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(401))
+      .mockResolvedValueOnce(errorResponse(400));
+    vi.stubGlobal("fetch", fetchMock);
+    const { fetchUsageSnapshot } = await loadUsageProviders();
+
+    const [claude] = await fetchUsageSnapshot(claudeOnlySettings);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(claude.status).toBe("signed-out");
+    expect(claude.connectionStatus).toBe("signed-out");
+  });
+
   it("만료된 refresh credential은 401에서 실제 로그인 만료로 표시한다", async () => {
     writeClaudeCredential("token-a", "expired-refresh", Date.now() - 1_000);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(errorResponse(401)));

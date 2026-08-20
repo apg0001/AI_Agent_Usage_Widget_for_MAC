@@ -73,7 +73,25 @@ type ClaudeSession = {
   accessToken: string;
   resetTrackingId: string;
   hasRefreshCredential: boolean;
+  refreshToken?: string;
 };
+
+type ClaudeTokenRefreshOutcome =
+  | { status: "ok"; accessToken: string; refreshToken: string; expiresAt?: number }
+  | { status: "invalid" }
+  | { status: "error" };
+
+const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+const CLAUDE_OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
+const CLAUDE_REFRESH_FALLBACK_TTL_MS = 55 * 60_000;
+
+let claudeRefreshedCredential: {
+  resetTrackingId: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+} | null = null;
+let claudeInvalidRefreshToken: string | null = null;
 
 function createClaudeRequestState(
   accessToken: string | null,
@@ -796,7 +814,8 @@ function readClaudeSession(): ClaudeSession | null {
         return {
           accessToken: token,
           resetTrackingId: createResetTrackingId(credentials.organizationUuid ?? refreshToken ?? token),
-          hasRefreshCredential: hasUsableRefreshCredential(refreshToken, refreshTokenExpiresAt)
+          hasRefreshCredential: hasUsableRefreshCredential(refreshToken, refreshTokenExpiresAt),
+          refreshToken
         };
       }
     } catch {
@@ -816,7 +835,8 @@ function readClaudeSession(): ClaudeSession | null {
         hasRefreshCredential: hasUsableRefreshCredential(
           keychainCredential.refreshToken,
           keychainCredential.refreshTokenExpiresAt
-        )
+        ),
+        refreshToken: keychainCredential.refreshToken
       }
     : null;
 }
@@ -998,7 +1018,110 @@ function claudeCachedOrFailure(error: Error, state: ClaudeRequestState, language
     : claudeFailureUsage(error, state, language);
 }
 
-async function fetchThrottledClaudeUsage(session: ClaudeSession, language: Language): Promise<UsageResult> {
+async function refreshClaudeAccessToken(refreshToken: string): Promise<ClaudeTokenRefreshOutcome> {
+  try {
+    const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
+      method: "POST",
+      signal: globalThis.AbortSignal.timeout(CLAUDE_REQUEST_TIMEOUT_MS),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: CLAUDE_OAUTH_CLIENT_ID
+      })
+    });
+
+    if (response.status === 400) {
+      return { status: "invalid" };
+    }
+    if (!response.ok) {
+      return { status: "error" };
+    }
+
+    const data = (await response.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+    };
+    if (!data.access_token) {
+      return { status: "error" };
+    }
+    return {
+      status: "ok",
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? refreshToken,
+      expiresAt: data.expires_in ? Date.now() + data.expires_in * 1_000 : undefined
+    };
+  } catch {
+    return { status: "error" };
+  }
+}
+
+function claudeSessionWithRefreshOverride(session: ClaudeSession): ClaudeSession {
+  if (
+    claudeRefreshedCredential &&
+    claudeRefreshedCredential.resetTrackingId === session.resetTrackingId &&
+    claudeRefreshedCredential.expiresAt > Date.now()
+  ) {
+    return {
+      ...session,
+      accessToken: claudeRefreshedCredential.accessToken,
+      refreshToken: claudeRefreshedCredential.refreshToken,
+      hasRefreshCredential: true
+    };
+  }
+  return session;
+}
+
+async function tryRecoverWithClaudeRefresh(
+  error: unknown,
+  session: ClaudeSession,
+  state: ClaudeRequestState,
+  language: Language
+): Promise<UsageResult | null> {
+  if (!(error instanceof ClaudeUsageApiError) || error.status !== 401 || !session.refreshToken || !state.hasRefreshCredential) {
+    return null;
+  }
+  if (session.refreshToken === claudeInvalidRefreshToken) {
+    state.hasRefreshCredential = false;
+    return null;
+  }
+
+  const outcome = await refreshClaudeAccessToken(session.refreshToken);
+  if (outcome.status === "invalid") {
+    claudeInvalidRefreshToken = session.refreshToken;
+    if (claudeRefreshedCredential?.resetTrackingId === session.resetTrackingId) {
+      claudeRefreshedCredential = null;
+    }
+    state.hasRefreshCredential = false;
+    return null;
+  }
+  if (outcome.status !== "ok") {
+    return null;
+  }
+
+  claudeRefreshedCredential = {
+    resetTrackingId: session.resetTrackingId,
+    accessToken: outcome.accessToken,
+    refreshToken: outcome.refreshToken,
+    expiresAt: outcome.expiresAt ?? Date.now() + CLAUDE_REFRESH_FALLBACK_TTL_MS
+  };
+
+  try {
+    const usage = {
+      ...(await fetchClaudeUsage(outcome.accessToken, language)),
+      resetTrackingId: session.resetTrackingId
+    };
+    state.failureCount = 0;
+    state.lastError = null;
+    return usage;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchThrottledClaudeUsage(rawSession: ClaudeSession, language: Language): Promise<UsageResult> {
+  const session = claudeSessionWithRefreshOverride(rawSession);
   const state = resetClaudeRequestState(
     session.accessToken,
     session.resetTrackingId,
@@ -1029,6 +1152,11 @@ async function fetchThrottledClaudeUsage(session: ClaudeSession, language: Langu
       state.lastError = null;
       return claudeRequestState === state ? rememberUsage("claude", usage) : usage;
     } catch (error) {
+      const recovered = await tryRecoverWithClaudeRefresh(error, session, state, language);
+      if (recovered) {
+        return claudeRequestState === state ? rememberUsage("claude", recovered) : recovered;
+      }
+
       const normalizedError = error instanceof Error ? error : new Error(getTranslations(language).usage.claudeFetchFailedGeneric);
       state.failureCount += 1;
       state.lastError = normalizedError;
@@ -1114,7 +1242,8 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
         ? {
             accessToken: credential,
             resetTrackingId: createResetTrackingId(auth.accountLabel ?? auth.refreshToken ?? credential),
-            hasRefreshCredential: Boolean(auth.refreshToken)
+            hasRefreshCredential: Boolean(auth.refreshToken),
+            refreshToken: auth.refreshToken
           }
         : null;
       const session = savedOAuthSession ?? (isLocalProviderDetectionEnabled() ? readClaudeSession() : null);
