@@ -1488,11 +1488,15 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .manual-update-install code {
   display: block;
   overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 8px 10px;
   border: 1px solid var(--ink-300);
   border-radius: 8px;
