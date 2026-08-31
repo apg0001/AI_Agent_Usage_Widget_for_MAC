@@ -49,6 +49,7 @@ export const linuxPlatform: PlatformAdapter = {
   id: "linux",
   hideFromDock: () => undefined,
   readClaudeKeychainCredential: () => null,
+  writeClaudeKeychainCredential: () => false,
   getLaunchAtLogin,
   setLaunchAtLogin
 };

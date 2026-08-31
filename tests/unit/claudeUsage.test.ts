@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,12 +61,29 @@ function errorResponse(status: number, retryAfter?: string) {
   });
 }
 
+function createFakePlatformAdapter() {
+  return {
+    id: "mac" as const,
+    hideFromDock: () => undefined,
+    readClaudeKeychainCredential: () => null,
+    writeClaudeKeychainCredential: () => false,
+    getLaunchAtLogin: () => false,
+    setLaunchAtLogin: () => undefined
+  };
+}
+
 async function loadUsageProviders() {
   vi.resetModules();
   vi.doMock("node:os", async (importOriginal) => {
     const original = await importOriginal<typeof import("node:os")>();
     return { ...original, homedir: () => fakeHome };
   });
+  // Never let tests touch the real OS keychain: fetchThrottledClaudeUsage's refresh path calls
+  // platformAdapter.writeClaudeKeychainCredential, which on macOS shells out to /usr/bin/security.
+  vi.doMock("../../src/main/platform/index.js", () => ({
+    platformAdapter: createFakePlatformAdapter(),
+    getPlatformAdapter: () => createFakePlatformAdapter()
+  }));
   return import("../../src/main/usageProviders");
 }
 
@@ -202,6 +219,29 @@ describe("Claude 사용량 폴링", () => {
     expect(claude.percent).toBe(42);
     expect(claude.connectionStatus).toBe("connected");
     expect(claude.status).not.toBe("signed-out");
+  });
+
+  it("갱신된 토큰을 .credentials.json에 다시 저장해 refresh token 회전으로 세션이 끊기지 않게 한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(401))
+      .mockResolvedValueOnce(
+        new globalThis.Response(
+          JSON.stringify({ access_token: "token-b", refresh_token: "refresh-account-b", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(usageResponse(42));
+    vi.stubGlobal("fetch", fetchMock);
+    const { fetchUsageSnapshot } = await loadUsageProviders();
+
+    await fetchUsageSnapshot(claudeOnlySettings);
+
+    const persisted = JSON.parse(
+      readFileSync(path.join(fakeHome, ".claude", ".credentials.json"), "utf8")
+    );
+    expect(persisted.claudeAiOauth.accessToken).toBe("token-b");
+    expect(persisted.claudeAiOauth.refreshToken).toBe("refresh-account-b");
   });
 
   it("refresh 요청이 400(invalid_grant)이면 실제 로그인 만료로 표시한다", async () => {

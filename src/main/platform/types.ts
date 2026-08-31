@@ -9,10 +9,17 @@ export type ClaudeCredential = {
   organizationUuid?: string;
 };
 
+export type ClaudeCredentialUpdate = {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt?: number;
+};
+
 export type PlatformAdapter = {
   id: AppPlatform;
   hideFromDock: (app: App) => void;
   readClaudeKeychainCredential: () => ClaudeCredential | null;
+  writeClaudeKeychainCredential: (update: ClaudeCredentialUpdate) => boolean;
   getLaunchAtLogin: (app: App) => boolean;
   setLaunchAtLogin: (app: App, enabled: boolean) => void;
 };

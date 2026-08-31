@@ -1,27 +1,45 @@
 import { execFileSync } from "node:child_process";
 import { Buffer } from "node:buffer";
 import { getLoginItemLaunchAtLogin, setLoginItemLaunchAtLogin } from "./loginItem.js";
-import { ClaudeCredential, PlatformAdapter } from "./types.js";
+import { ClaudeCredential, ClaudeCredentialUpdate, PlatformAdapter } from "./types.js";
 
 const KEYCHAIN_READ_INTERVAL_MS = 60_000;
-let keychainCredentialCache: { expiresAt: number; value: ClaudeCredential | null } = {
+
+type ClaudeKeychainEnvelope = {
+  accessToken?: string;
+  refreshToken?: string;
+  refreshTokenExpiresAt?: number | string;
+  organizationUuid?: string;
+  claudeAiOauth?: {
+    accessToken?: string;
+    refreshToken?: string;
+    refreshTokenExpiresAt?: number | string;
+    expiresAt?: number | string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+type KeychainItem = { account: string; service: string };
+type DecodedCredential = { envelope: ClaudeKeychainEnvelope; encoding: "json" | "hex" };
+
+let keychainCredentialCache: {
+  expiresAt: number;
+  value: ClaudeCredential | null;
+  source: (KeychainItem & { encoding: "json" | "hex" }) | null;
+} = {
   expiresAt: 0,
-  value: null
+  value: null,
+  source: null
 };
 
 function isClaudeCredentialService(service: string) {
   return service === "Claude Code-credentials" || service.startsWith("Claude Code-credentials-");
 }
 
-function decodeClaudeCredential(raw: string) {
+function decodeClaudeCredential(raw: string): DecodedCredential | null {
   try {
-    return JSON.parse(raw) as {
-      accessToken?: string;
-      refreshToken?: string;
-      refreshTokenExpiresAt?: number | string;
-      organizationUuid?: string;
-      claudeAiOauth?: { accessToken?: string; refreshToken?: string; refreshTokenExpiresAt?: number | string };
-    };
+    return { envelope: JSON.parse(raw) as ClaudeKeychainEnvelope, encoding: "json" };
   } catch {
     const trimmed = raw.trim();
     if (!trimmed || trimmed.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(trimmed)) {
@@ -29,13 +47,7 @@ function decodeClaudeCredential(raw: string) {
     }
     try {
       const decoded = Buffer.from(trimmed, "hex").toString("utf8");
-      return JSON.parse(decoded) as {
-        accessToken?: string;
-        refreshToken?: string;
-        refreshTokenExpiresAt?: number | string;
-        organizationUuid?: string;
-        claudeAiOauth?: { accessToken?: string; refreshToken?: string; refreshTokenExpiresAt?: number | string };
-      };
+      return { envelope: JSON.parse(decoded) as ClaudeKeychainEnvelope, encoding: "hex" };
     } catch {
       return null;
     }
@@ -87,17 +99,21 @@ function readClaudeKeychainCredential(): ClaudeCredential | null {
           timeout: 3_000
         }
       ).trim();
-      const credentials = decodeClaudeCredential(raw);
-      const token = credentials?.claudeAiOauth?.accessToken ?? credentials?.accessToken;
-      if (token) {
+      const decoded = decodeClaudeCredential(raw);
+      const token = decoded?.envelope.claudeAiOauth?.accessToken ?? decoded?.envelope.accessToken;
+      if (decoded && token) {
         const value = {
           accessToken: token,
-          refreshToken: credentials?.claudeAiOauth?.refreshToken ?? credentials?.refreshToken,
+          refreshToken: decoded.envelope.claudeAiOauth?.refreshToken ?? decoded.envelope.refreshToken,
           refreshTokenExpiresAt:
-            credentials?.claudeAiOauth?.refreshTokenExpiresAt ?? credentials?.refreshTokenExpiresAt,
-          organizationUuid: credentials?.organizationUuid
+            decoded.envelope.claudeAiOauth?.refreshTokenExpiresAt ?? decoded.envelope.refreshTokenExpiresAt,
+          organizationUuid: decoded.envelope.organizationUuid
         };
-        keychainCredentialCache = { expiresAt: Date.now() + KEYCHAIN_READ_INTERVAL_MS, value };
+        keychainCredentialCache = {
+          expiresAt: Date.now() + KEYCHAIN_READ_INTERVAL_MS,
+          value,
+          source: { account: item.account, service: item.service, encoding: decoded.encoding }
+        };
         return value;
       }
     } catch {
@@ -107,15 +123,77 @@ function readClaudeKeychainCredential(): ClaudeCredential | null {
 
   keychainCredentialCache = {
     expiresAt: Date.now() + KEYCHAIN_READ_INTERVAL_MS,
-    value: null
+    value: null,
+    source: null
   };
   return null;
+}
+
+function writeToKeychainItem(item: KeychainItem, update: ClaudeCredentialUpdate) {
+  const raw = execFileSync(
+    "/usr/bin/security",
+    ["find-generic-password", "-s", item.service, "-a", item.account, "-w"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 3_000 }
+  ).trim();
+  const decoded = decodeClaudeCredential(raw);
+  if (!decoded) {
+    return false;
+  }
+  const { envelope, encoding } = decoded;
+  const hasToken = envelope.claudeAiOauth?.accessToken ?? envelope.accessToken;
+  if (!hasToken) {
+    return false;
+  }
+
+  if (envelope.claudeAiOauth) {
+    envelope.claudeAiOauth.accessToken = update.accessToken;
+    envelope.claudeAiOauth.refreshToken = update.refreshToken;
+    if (update.expiresAt !== undefined) {
+      envelope.claudeAiOauth.expiresAt = update.expiresAt;
+    }
+  } else {
+    envelope.accessToken = update.accessToken;
+    envelope.refreshToken = update.refreshToken;
+    if (update.expiresAt !== undefined) {
+      envelope.expiresAt = update.expiresAt;
+    }
+  }
+
+  const serialized = JSON.stringify(envelope);
+  const payload = encoding === "hex" ? Buffer.from(serialized, "utf8").toString("hex") : serialized;
+
+  execFileSync(
+    "/usr/bin/security",
+    ["add-generic-password", "-U", "-s", item.service, "-a", item.account, "-w", payload],
+    { stdio: ["ignore", "ignore", "ignore"], timeout: 3_000 }
+  );
+  return true;
+}
+
+function writeClaudeKeychainCredential(update: ClaudeCredentialUpdate): boolean {
+  const cachedSource = keychainCredentialCache.source;
+  const candidates: KeychainItem[] = cachedSource
+    ? [{ account: cachedSource.account, service: cachedSource.service }, ...listClaudeKeychainItems()]
+    : listClaudeKeychainItems();
+
+  for (const item of candidates) {
+    try {
+      if (writeToKeychainItem(item, update)) {
+        keychainCredentialCache = { expiresAt: 0, value: null, source: null };
+        return true;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return false;
 }
 
 export const macPlatform: PlatformAdapter = {
   id: "mac",
   hideFromDock: (app) => app.dock?.hide(),
   readClaudeKeychainCredential,
+  writeClaudeKeychainCredential,
   getLaunchAtLogin: getLoginItemLaunchAtLogin,
   setLaunchAtLogin: setLoginItemLaunchAtLogin
 };

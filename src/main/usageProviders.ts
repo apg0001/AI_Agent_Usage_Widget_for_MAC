@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
-import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { platformAdapter } from "./platform/index.js";
+import { ClaudeCredentialUpdate } from "./platform/types.js";
 import { getTranslations, Language } from "../shared/i18n.js";
 import { AppSettings, ProviderAuth, ProviderId, ProviderUsage, PROVIDERS, UsageLimitWindow } from "../shared/types.js";
 
@@ -1018,6 +1019,54 @@ function claudeCachedOrFailure(error: Error, state: ClaudeRequestState, language
     : claudeFailureUsage(error, state, language);
 }
 
+type ClaudeFileCredentialEnvelope = {
+  accessToken?: string;
+  refreshToken?: string;
+  refreshTokenExpiresAt?: number | string;
+  expiresAt?: number | string;
+  organizationUuid?: string;
+  claudeAiOauth?: {
+    accessToken?: string;
+    refreshToken?: string;
+    refreshTokenExpiresAt?: number | string;
+    expiresAt?: number | string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+function persistClaudeFileCredential(update: ClaudeCredentialUpdate): boolean {
+  const credentialsPath = path.join(claudeConfigDirectory(), ".credentials.json");
+  if (!existsSync(credentialsPath)) {
+    return false;
+  }
+  try {
+    const envelope = JSON.parse(readFileSync(credentialsPath, "utf8")) as ClaudeFileCredentialEnvelope;
+    if (envelope.claudeAiOauth) {
+      envelope.claudeAiOauth.accessToken = update.accessToken;
+      envelope.claudeAiOauth.refreshToken = update.refreshToken;
+      if (update.expiresAt !== undefined) {
+        envelope.claudeAiOauth.expiresAt = update.expiresAt;
+      }
+    } else {
+      envelope.accessToken = update.accessToken;
+      envelope.refreshToken = update.refreshToken;
+      if (update.expiresAt !== undefined) {
+        envelope.expiresAt = update.expiresAt;
+      }
+    }
+    writeFileSync(credentialsPath, JSON.stringify(envelope, null, 2), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function persistClaudeCredential(update: ClaudeCredentialUpdate): void {
+  persistClaudeFileCredential(update);
+  platformAdapter.writeClaudeKeychainCredential(update);
+}
+
 async function refreshClaudeAccessToken(refreshToken: string): Promise<ClaudeTokenRefreshOutcome> {
   try {
     const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
@@ -1106,6 +1155,11 @@ async function tryRecoverWithClaudeRefresh(
     refreshToken: outcome.refreshToken,
     expiresAt: outcome.expiresAt ?? Date.now() + CLAUDE_REFRESH_FALLBACK_TTL_MS
   };
+  persistClaudeCredential({
+    accessToken: outcome.accessToken,
+    refreshToken: outcome.refreshToken,
+    expiresAt: outcome.expiresAt
+  });
 
   try {
     const usage = {
