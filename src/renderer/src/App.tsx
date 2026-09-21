@@ -395,6 +395,20 @@ function StatusBadge({ usage }: { usage: ProviderUsage }) {
   );
 }
 
+function PlanBadge({ usage }: { usage: ProviderUsage }) {
+  const { t } = useI18n();
+  if (!usage.planLabel) {
+    return null;
+  }
+
+  return (
+    <span className="plan-badge" title={usage.planLabel}>
+      <span className="sr-only">{t.provider.planAriaPrefix(usage.label)}</span>
+      {usage.planLabel}
+    </span>
+  );
+}
+
 function TokenLoginForm({
   provider,
   busy,
@@ -506,6 +520,7 @@ function ProviderCard({
       <div className="provider-card-heading">
         <div className="provider-title">
           <h2>{usage.label}</h2>
+          <PlanBadge usage={usage} />
           <StatusBadge usage={usage} />
         </div>
         <button
@@ -961,6 +976,7 @@ function ProviderDetail({
         </button>
         <div className="page-title">
           <h1>{usage.label}</h1>
+          <PlanBadge usage={usage} />
           <StatusBadge usage={usage} />
         </div>
         <button className="icon-button" type="button" onClick={onRefresh} disabled={busy} aria-label={t.detail.refreshAria(usage.label)}>

@@ -75,6 +75,7 @@ type ClaudeSession = {
   resetTrackingId: string;
   hasRefreshCredential: boolean;
   refreshToken?: string;
+  planLabel?: string;
 };
 
 type ClaudeTokenRefreshOutcome =
@@ -172,6 +173,46 @@ function isLocalProviderDetectionEnabled() {
 
 function getStatus(percent: number): ProviderUsage["status"] {
   return percent >= 90 ? "critical" : percent >= 75 ? "warning" : "ok";
+}
+
+/**
+ * Plan identifiers arrive as provider-specific slugs ("plus", "max_5x",
+ * "chatgpt_pro"). Normalize them into a short badge label, and give up rather
+ * than render something unrecognizable when a provider sends an unexpected value.
+ */
+const PLAN_WORD_LABELS: Record<string, string> = {
+  free: "Free",
+  plus: "Plus",
+  pro: "Pro",
+  max: "Max",
+  team: "Team",
+  business: "Business",
+  enterprise: "Enterprise",
+  edu: "Edu",
+  ultra: "Ultra",
+  advanced: "Advanced",
+  standard: "Standard"
+};
+
+export function formatPlanLabel(raw: unknown): string | undefined {
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/^(chatgpt|openai|claude|anthropic|gemini|google)[\s_-]+/, "")
+    .replace(/[\s_-]+(plan|tier|subscription)$/, "");
+  const words = normalized.split(/[\s_-]+/).filter(Boolean);
+  if (words.length === 0 || words.length > 3) {
+    return undefined;
+  }
+
+  const label = words
+    .map((word) => PLAN_WORD_LABELS[word] ?? (/\d/.test(word) ? word.toUpperCase() : `${word[0].toUpperCase()}${word.slice(1)}`))
+    .join(" ");
+  return label.length <= 24 ? label : undefined;
 }
 
 function clampPercent(value: number) {
@@ -482,7 +523,7 @@ function readLatestCodexUsage(language: Language) {
           connectionStatus: "connected" as const,
           dataUpdatedAt,
           windows: ensureLimitWindows(windows, language),
-          message: rateLimit?.plan_type
+          planLabel: formatPlanLabel(rateLimit?.plan_type)
         }, language);
         codexLocalCache.usage = usage;
         return usage;
@@ -661,7 +702,7 @@ async function fetchCodexUsage(savedAccessToken: string | undefined, language: L
     connectionStatus: "connected" as const,
     dataUpdatedAt,
     windows,
-    message: data.plan_type
+    planLabel: formatPlanLabel(data.plan_type)
   }, language);
 }
 
@@ -802,10 +843,12 @@ function readClaudeSession(): ClaudeSession | null {
         refreshToken?: string;
         refreshTokenExpiresAt?: number | string;
         organizationUuid?: string;
+        subscriptionType?: string;
         claudeAiOauth?: {
           accessToken?: string;
           refreshToken?: string;
           refreshTokenExpiresAt?: number | string;
+          subscriptionType?: string;
         };
       };
       const token = credentials.claudeAiOauth?.accessToken ?? credentials.accessToken;
@@ -816,7 +859,8 @@ function readClaudeSession(): ClaudeSession | null {
           accessToken: token,
           resetTrackingId: createResetTrackingId(credentials.organizationUuid ?? refreshToken ?? token),
           hasRefreshCredential: hasUsableRefreshCredential(refreshToken, refreshTokenExpiresAt),
-          refreshToken
+          refreshToken,
+          planLabel: formatPlanLabel(credentials.claudeAiOauth?.subscriptionType ?? credentials.subscriptionType)
         };
       }
     } catch {
@@ -837,7 +881,8 @@ function readClaudeSession(): ClaudeSession | null {
           keychainCredential.refreshToken,
           keychainCredential.refreshTokenExpiresAt
         ),
-        refreshToken: keychainCredential.refreshToken
+        refreshToken: keychainCredential.refreshToken,
+        planLabel: formatPlanLabel(keychainCredential.subscriptionType)
       }
     : null;
 }
@@ -882,6 +927,7 @@ async function fetchClaudeUsage(accessToken: string, language: Language): Promis
   const data = (await response.json()) as {
     five_hour?: { utilization?: number; resets_at?: string };
     seven_day?: { utilization?: number; resets_at?: string };
+    subscription_type?: string;
   };
   const window = data.five_hour ?? data.seven_day;
   if (!window || typeof window.utilization !== "number") {
@@ -922,6 +968,7 @@ async function fetchClaudeUsage(accessToken: string, language: Language): Promis
           }, language)
         : null
     ].filter(isUsageWindow), language),
+    planLabel: formatPlanLabel(data.subscription_type),
     message: undefined
   }, language);
 }
@@ -1292,7 +1339,7 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
       return codexUsage ?? readLastSuccessfulUsage(provider.id) ?? seededUsage(provider.id, credential, language);
     }
     if (provider.id === "claude") {
-      const savedOAuthSession = auth?.type === "oauth" && credential
+      const savedOAuthSession: ClaudeSession | null = auth?.type === "oauth" && credential
         ? {
             accessToken: credential,
             resetTrackingId: createResetTrackingId(auth.accountLabel ?? auth.refreshToken ?? credential),
@@ -1308,7 +1355,8 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
           connectionStatus: "signed-out" as const
         };
       }
-      return fetchThrottledClaudeUsage(session, language);
+      const claudeUsage = await fetchThrottledClaudeUsage(session, language);
+      return claudeUsage.planLabel ? claudeUsage : { ...claudeUsage, planLabel: session.planLabel };
     }
     if (provider.id === "gemini") {
       return (
@@ -1356,12 +1404,14 @@ export async function fetchUsageSnapshot(settings: AppSettings): Promise<Provide
               providerSettings.auth ? undefined : readAccountEmail(adapter.id)
             )
           : undefined;
+        const planLabel = result.connectionStatus === "connected" ? result.planLabel : undefined;
         return {
           provider: adapter.id,
           label: adapter.label,
           updatedAt: receivedAt,
           ...result,
           accountLabel,
+          planLabel,
           sourceInfo: result.sourceInfo ?? sourceInfo(result, adapter.label, language),
           freshness: {
             observedAt,

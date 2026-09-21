@@ -7,6 +7,7 @@ export type ClaudeCredential = {
   refreshToken?: string;
   refreshTokenExpiresAt?: number | string;
   organizationUuid?: string;
+  subscriptionType?: string;
 };
 
 export type ClaudeCredentialUpdate = {

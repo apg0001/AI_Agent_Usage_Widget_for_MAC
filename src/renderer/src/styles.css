@@ -424,6 +424,23 @@ footer {
   color: var(--badge-critical-text);
 }
 
+.plan-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 108px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  border: 1px solid var(--badge-neutral-bg);
+  background: transparent;
+  color: var(--badge-neutral-text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status-badge.status-signed-out {
   background: var(--badge-neutral-bg);
   color: var(--badge-neutral-text);

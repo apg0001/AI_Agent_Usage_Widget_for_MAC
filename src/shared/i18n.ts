@@ -44,6 +44,7 @@ export type Translations = {
     windowUnavailable: string;
     periodElapsed: (percent: number) => string;
     statusAriaPrefix: (label: string) => string;
+    planAriaPrefix: (label: string) => string;
   };
   auth: {
     tokenPlaceholder: string;
@@ -375,7 +376,8 @@ const ko: Translations = {
       `${percent}% 사용${elapsedPercent === undefined ? "" : `, 현재 한도 기간 ${elapsedPercent}% 경과`}`,
     windowUnavailable: "사용량 정보 없음",
     periodElapsed: (percent) => `기간 ${percent}% 경과`,
-    statusAriaPrefix: (label) => `${label} 상태: `
+    statusAriaPrefix: (label) => `${label} 상태: `,
+    planAriaPrefix: (label) => `${label} 플랜: `
   },
   auth: {
     tokenPlaceholder: "액세스 토큰",
@@ -718,7 +720,8 @@ const en: Translations = {
       `${percent}% used${elapsedPercent === undefined ? "" : `, ${elapsedPercent}% of the current period elapsed`}`,
     windowUnavailable: "No usage data",
     periodElapsed: (percent) => `${percent}% of period elapsed`,
-    statusAriaPrefix: (label) => `${label} status: `
+    statusAriaPrefix: (label) => `${label} status: `,
+    planAriaPrefix: (label) => `${label} plan: `
   },
   auth: {
     tokenPlaceholder: "Access token",

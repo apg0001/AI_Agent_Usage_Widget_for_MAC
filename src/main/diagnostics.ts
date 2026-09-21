@@ -61,6 +61,7 @@ export function createDiagnosticsReport(snapshot: UsageSnapshot, metadata: Diagn
       unit: usage.unit,
       source: usage.source,
       connectionStatus: usage.connectionStatus,
+      planLabel: usage.planLabel,
       stale: Boolean(usage.stale),
       updatedAt: usage.updatedAt,
       dataUpdatedAt: usage.dataUpdatedAt,

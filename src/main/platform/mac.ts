@@ -10,11 +10,13 @@ type ClaudeKeychainEnvelope = {
   refreshToken?: string;
   refreshTokenExpiresAt?: number | string;
   organizationUuid?: string;
+  subscriptionType?: string;
   claudeAiOauth?: {
     accessToken?: string;
     refreshToken?: string;
     refreshTokenExpiresAt?: number | string;
     expiresAt?: number | string;
+    subscriptionType?: string;
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -107,7 +109,8 @@ function readClaudeKeychainCredential(): ClaudeCredential | null {
           refreshToken: decoded.envelope.claudeAiOauth?.refreshToken ?? decoded.envelope.refreshToken,
           refreshTokenExpiresAt:
             decoded.envelope.claudeAiOauth?.refreshTokenExpiresAt ?? decoded.envelope.refreshTokenExpiresAt,
-          organizationUuid: decoded.envelope.organizationUuid
+          organizationUuid: decoded.envelope.organizationUuid,
+          subscriptionType: decoded.envelope.claudeAiOauth?.subscriptionType ?? decoded.envelope.subscriptionType
         };
         keychainCredentialCache = {
           expiresAt: Date.now() + KEYCHAIN_READ_INTERVAL_MS,
