@@ -2,9 +2,10 @@ import { execFileSync } from "node:child_process";
 import { Buffer } from "node:buffer";
 import { getLoginItemLaunchAtLogin, setLoginItemLaunchAtLogin } from "./loginItem.js";
 import {
+  AntigravityCredential,
   ANTIGRAVITY_KEYRING_ACCOUNT,
   ANTIGRAVITY_KEYRING_SERVICE,
-  parseAntigravityToken
+  parseAntigravityCredential
 } from "./antigravityCredential.js";
 import { ClaudeCredential, ClaudeCredentialUpdate, PlatformAdapter } from "./types.js";
 
@@ -197,14 +198,14 @@ function writeClaudeKeychainCredential(update: ClaudeCredentialUpdate): boolean 
   return false;
 }
 
-function readAntigravityKeyringToken(): string | null {
+function readAntigravityCredential(): AntigravityCredential | null {
   try {
     const secret = execFileSync(
       "/usr/bin/security",
       ["find-generic-password", "-s", ANTIGRAVITY_KEYRING_SERVICE, "-a", ANTIGRAVITY_KEYRING_ACCOUNT, "-w"],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 3_000 }
     );
-    return parseAntigravityToken(secret);
+    return parseAntigravityCredential(secret);
   } catch {
     return null;
   }
@@ -214,7 +215,7 @@ export const macPlatform: PlatformAdapter = {
   id: "mac",
   hideFromDock: (app) => app.dock?.hide(),
   readClaudeKeychainCredential,
-  readAntigravityKeyringToken,
+  readAntigravityCredential,
   writeClaudeKeychainCredential,
   getLaunchAtLogin: getLoginItemLaunchAtLogin,
   setLaunchAtLogin: setLoginItemLaunchAtLogin

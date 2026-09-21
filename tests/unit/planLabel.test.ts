@@ -48,7 +48,7 @@ function writeGeminiCliCredentials(expiryDate: number) {
   );
 }
 
-async function loadUsageProviders(antigravityKeyringToken: string | null = null) {
+async function loadUsageProviders(antigravityAccessToken: string | null = null) {
   vi.resetModules();
   vi.doMock("node:os", async (importOriginal) => {
     const original = await importOriginal<typeof import("node:os")>();
@@ -61,7 +61,8 @@ async function loadUsageProviders(antigravityKeyringToken: string | null = null)
       platformAdapter: {
         ...original.platformAdapter,
         readClaudeKeychainCredential: () => null,
-        readAntigravityKeyringToken: () => antigravityKeyringToken
+        readAntigravityCredential: () =>
+          antigravityAccessToken ? { accessToken: antigravityAccessToken } : null
       }
     };
   });
@@ -240,7 +241,7 @@ describe("제공자 플랜 표시", () => {
   });
 
   it("Antigravity 설정이 없으면 키링을 건드리지 않는다", async () => {
-    const keyringReader = vi.fn().mockReturnValue("ya29.should-not-be-used");
+    const keyringReader = vi.fn().mockReturnValue({ accessToken: "ya29.should-not-be-used" });
     vi.resetModules();
     vi.doMock("node:os", async (importOriginal) => {
       const original = await importOriginal<typeof import("node:os")>();
@@ -253,7 +254,7 @@ describe("제공자 플랜 표시", () => {
         platformAdapter: {
           ...original.platformAdapter,
           readClaudeKeychainCredential: () => null,
-          readAntigravityKeyringToken: keyringReader
+          readAntigravityCredential: keyringReader
         }
       };
     });
@@ -263,6 +264,26 @@ describe("제공자 플랜 표시", () => {
     await fetchUsageSnapshot(geminiOnlySettings);
 
     expect(keyringReader).not.toHaveBeenCalled();
+  });
+
+  it("Antigravity로 이미 옮겼으면 이전 안내를 띄우지 않는다", async () => {
+    writeGeminiCliCredentials(Date.now() + 30 * 60_000);
+    mkdirSync(path.join(fakeHome, ".gemini", "antigravity-cli"), { recursive: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new globalThis.Response(
+          JSON.stringify({ ineligibleTiers: [{ reasonCode: "UNSUPPORTED_CLIENT", tierId: "free-tier" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    );
+    const { fetchUsageSnapshot } = await loadUsageProviders("ya29.antigravity");
+
+    const [gemini] = await fetchUsageSnapshot(geminiOnlySettings);
+
+    expect(gemini.message).not.toBe("Gemini CLI 지원 종료 — Antigravity로 이전 필요");
+    expect(gemini.windows?.[0]?.message).toBe("Antigravity CLI 세션 감지");
   });
 
   it("Gemini CLI가 지원 종료 응답을 받으면 Antigravity 이전 안내를 표시한다", async () => {

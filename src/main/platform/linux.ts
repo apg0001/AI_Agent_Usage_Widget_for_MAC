@@ -4,9 +4,10 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import {
+  AntigravityCredential,
   ANTIGRAVITY_KEYRING_ACCOUNT,
   ANTIGRAVITY_KEYRING_SERVICE,
-  parseAntigravityToken
+  parseAntigravityCredential
 } from "./antigravityCredential.js";
 import { PlatformAdapter } from "./types.js";
 
@@ -51,14 +52,14 @@ function setLaunchAtLogin(app: App, enabled: boolean): void {
   writeFileSync(AUTOSTART_DESKTOP_FILE, desktopEntry, "utf8");
 }
 
-function readAntigravityKeyringToken(): string | null {
+function readAntigravityCredential(): AntigravityCredential | null {
   try {
     const secret = execFileSync(
       "secret-tool",
       ["lookup", "service", ANTIGRAVITY_KEYRING_SERVICE, "account", ANTIGRAVITY_KEYRING_ACCOUNT],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 3_000 }
     );
-    return parseAntigravityToken(secret);
+    return parseAntigravityCredential(secret);
   } catch {
     return null;
   }
@@ -69,7 +70,7 @@ export const linuxPlatform: PlatformAdapter = {
   hideFromDock: () => undefined,
   readClaudeKeychainCredential: () => null,
   writeClaudeKeychainCredential: () => false,
-  readAntigravityKeyringToken,
+  readAntigravityCredential,
   getLaunchAtLogin,
   setLaunchAtLogin
 };

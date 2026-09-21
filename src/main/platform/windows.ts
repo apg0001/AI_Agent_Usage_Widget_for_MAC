@@ -1,7 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { Buffer } from "node:buffer";
 import { getLoginItemLaunchAtLogin, setLoginItemLaunchAtLogin } from "./loginItem.js";
-import { ANTIGRAVITY_WINDOWS_TARGET, parseAntigravityToken } from "./antigravityCredential.js";
+import {
+  AntigravityCredential,
+  ANTIGRAVITY_WINDOWS_TARGET,
+  parseAntigravityCredential
+} from "./antigravityCredential.js";
 import { PlatformAdapter } from "./types.js";
 
 const KEYRING_READ_INTERVAL_MS = 60_000;
@@ -14,7 +18,10 @@ const ANTIGRAVITY_TARGETS = [
   `LegacyGeneric:target=${ANTIGRAVITY_WINDOWS_TARGET}`
 ];
 
-let antigravityTokenCache: { expiresAt: number; value: string | null } = { expiresAt: 0, value: null };
+let antigravityCredentialCache: { expiresAt: number; value: AntigravityCredential | null } = {
+  expiresAt: 0,
+  value: null
+};
 
 /**
  * Credential Manager has no CLI that prints a secret (cmdkey only lists target
@@ -77,27 +84,28 @@ function readCredentialBlob(target: string): Buffer | null {
   }
 }
 
-function readAntigravityKeyringToken(): string | null {
-  if (Date.now() < antigravityTokenCache.expiresAt) {
-    return antigravityTokenCache.value;
+function readAntigravityCredential(): AntigravityCredential | null {
+  if (Date.now() < antigravityCredentialCache.expiresAt) {
+    return antigravityCredentialCache.value;
   }
 
-  let token: string | null = null;
+  let credential: AntigravityCredential | null = null;
   for (const target of ANTIGRAVITY_TARGETS) {
     const blob = readCredentialBlob(target);
     if (!blob) {
       continue;
     }
-    // The blob's encoding is undocumented; UTF-8 is the common case and
-    // Credential Manager's own tooling writes UTF-16LE.
-    token = parseAntigravityToken(blob.toString("utf8")) ?? parseAntigravityToken(blob.toString("utf16le"));
-    if (token) {
+    // The blob's encoding is undocumented; UTF-8 is what the CLI writes today
+    // and Credential Manager's own tooling writes UTF-16LE.
+    credential = parseAntigravityCredential(blob.toString("utf8")) ??
+      parseAntigravityCredential(blob.toString("utf16le"));
+    if (credential) {
       break;
     }
   }
 
-  antigravityTokenCache = { expiresAt: Date.now() + KEYRING_READ_INTERVAL_MS, value: token };
-  return token;
+  antigravityCredentialCache = { expiresAt: Date.now() + KEYRING_READ_INTERVAL_MS, value: credential };
+  return credential;
 }
 
 export const windowsPlatform: PlatformAdapter = {
@@ -105,7 +113,7 @@ export const windowsPlatform: PlatformAdapter = {
   hideFromDock: () => undefined,
   readClaudeKeychainCredential: () => null,
   writeClaudeKeychainCredential: () => false,
-  readAntigravityKeyringToken,
+  readAntigravityCredential,
   getLaunchAtLogin: getLoginItemLaunchAtLogin,
   setLaunchAtLogin: setLoginItemLaunchAtLogin
 };

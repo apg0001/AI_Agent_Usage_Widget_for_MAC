@@ -1,4 +1,5 @@
 import { App } from "electron";
+import { AntigravityCredential } from "./antigravityCredential.js";
 
 export type AppPlatform = "mac" | "windows" | "linux";
 
@@ -20,7 +21,7 @@ export type PlatformAdapter = {
   id: AppPlatform;
   hideFromDock: (app: App) => void;
   readClaudeKeychainCredential: () => ClaudeCredential | null;
-  readAntigravityKeyringToken: () => string | null;
+  readAntigravityCredential: () => AntigravityCredential | null;
   writeClaudeKeychainCredential: (update: ClaudeCredentialUpdate) => boolean;
   getLaunchAtLogin: (app: App) => boolean;
   setLaunchAtLogin: (app: App, enabled: boolean) => void;

@@ -1338,7 +1338,14 @@ function readAntigravityToken(): string | undefined {
   if (!isAntigravityConfigured()) {
     return undefined;
   }
-  return platformAdapter.readAntigravityKeyringToken() ?? undefined;
+  const credential = platformAdapter.readAntigravityCredential();
+  if (!credential) {
+    return undefined;
+  }
+  if (credential.expiresAtMs !== undefined && credential.expiresAtMs <= Date.now() + GEMINI_TOKEN_SKEW_MS) {
+    return undefined;
+  }
+  return credential.accessToken;
 }
 
 function readUnexpiredGeminiSavedToken(auth: ProviderAuth | undefined): string | undefined {
@@ -1425,14 +1432,16 @@ function readGeminiLocalSession(language: Language) {
   // Pro/Ultra and free accounts, keeps nothing there and only leaves a config
   // directory behind. Either one means the user has a Google session.
   const hasGeminiCliSession = existsSync(credentialsPath);
-  const hasAntigravitySession = !hasGeminiCliSession && isAntigravityConfigured();
+  const hasAntigravitySession = isAntigravityConfigured();
   if (!hasGeminiCliSession && !hasAntigravitySession) {
     return null;
   }
   const t = getTranslations(language);
-  const sessionMessage = hasGeminiCliSession
-    ? t.usage.geminiOAuthSessionDetected
-    : t.usage.antigravitySessionDetected;
+  // Gemini CLI leaves its credentials behind after migrating, so an Antigravity
+  // install is the better description of what the user is actually running.
+  const sessionMessage = hasAntigravitySession
+    ? t.usage.antigravitySessionDetected
+    : t.usage.geminiOAuthSessionDetected;
 
   return withReset({
     used: 0,
@@ -1520,7 +1529,7 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
         return geminiUsage;
       }
       const tier = await resolveGeminiTier(auth);
-      const migrationNote = tier.unsupportedClient
+      const migrationNote = tier.unsupportedClient && !isAntigravityConfigured()
         ? getTranslations(language).usage.geminiClientUnsupported
         : undefined;
       return {
