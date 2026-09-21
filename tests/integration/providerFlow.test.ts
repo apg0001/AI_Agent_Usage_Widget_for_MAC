@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchUsageSnapshot } from "../../src/main/usageProviders";
 import { AppSettings } from "../../src/shared/types";
 
@@ -61,6 +61,15 @@ function setVisible(settings: AppSettings, provider: keyof AppSettings["provider
     }
   };
 }
+
+// Gemini 플랜 조회는 Code Assist API를 호출하므로 테스트에서 실제 네트워크로 나가지 않게 막는다.
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new globalThis.Response("{}", { status: 401 })));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("제공자 설정 흐름", () => {
   it("로그인, 표시 모델 선택, 로그아웃 흐름을 검증한다", async () => {

@@ -201,6 +201,8 @@ export type Translations = {
     claudeRateLimited: (seconds: number) => string;
     claudeFetchFailed: (seconds: number) => string;
     geminiOAuthSessionDetected: string;
+    antigravitySessionDetected: string;
+    geminiClientUnsupported: string;
     geminiApiPending: string;
     googleOAuthConnected: string;
     lastGoodData: (label: string) => string;
@@ -552,6 +554,8 @@ const ko: Translations = {
     claudeRateLimited: (seconds) => `Claude Code 세션은 연결되어 있지만 사용량 조회가 제한되었습니다. ${seconds}초 후 다시 시도합니다.`,
     claudeFetchFailed: (seconds) => `Claude Code 세션은 연결되어 있지만 사용량을 불러오지 못했습니다. ${seconds}초 후 다시 시도합니다.`,
     geminiOAuthSessionDetected: "Gemini OAuth 세션 감지",
+    antigravitySessionDetected: "Antigravity CLI 세션 감지",
+    geminiClientUnsupported: "Gemini CLI 지원 종료 — Antigravity로 이전 필요",
     geminiApiPending: "Gemini 사용량 API 연결 대기",
     googleOAuthConnected: "Google OAuth 로그인",
     lastGoodData: (label) => `${label} 마지막 정상 데이터`,
@@ -896,6 +900,8 @@ const en: Translations = {
     claudeRateLimited: (seconds) => `The Claude Code session is connected, but usage lookups are rate-limited. Retrying in ${seconds}s.`,
     claudeFetchFailed: (seconds) => `The Claude Code session is connected, but usage couldn't be loaded. Retrying in ${seconds}s.`,
     geminiOAuthSessionDetected: "Gemini OAuth session detected",
+    antigravitySessionDetected: "Antigravity CLI session detected",
+    geminiClientUnsupported: "Gemini CLI no longer supported — migrate to Antigravity",
     geminiApiPending: "Waiting to connect to the Gemini usage API",
     googleOAuthConnected: "Signed in with Google OAuth",
     lastGoodData: (label) => `${label} last good data`,

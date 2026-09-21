@@ -4,6 +4,7 @@ import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, s
 import { homedir } from "node:os";
 import path from "node:path";
 import { platformAdapter } from "./platform/index.js";
+import { readCachedPlanLabel, writeCachedPlanLabel } from "./planCacheStore.js";
 import { ClaudeCredentialUpdate } from "./platform/types.js";
 import { getTranslations, Language } from "../shared/i18n.js";
 import { AppSettings, ProviderAuth, ProviderId, ProviderUsage, PROVIDERS, UsageLimitWindow } from "../shared/types.js";
@@ -37,6 +38,11 @@ const CODEX_SESSION_TAIL_BYTES = 512 * 1_024;
 const CLAUDE_MIN_REFRESH_MS = 60_000;
 const CLAUDE_MAX_BACKOFF_MS = 15 * 60_000;
 const CLAUDE_REQUEST_TIMEOUT_MS = 15_000;
+const GEMINI_REQUEST_TIMEOUT_MS = 15_000;
+const GEMINI_PLAN_REFRESH_MS = 6 * 60 * 60_000;
+const GEMINI_PLAN_RETRY_MS = 10 * 60_000;
+const GEMINI_TOKEN_SKEW_MS = 60_000;
+const CODE_ASSIST_LOAD_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
 
 class CodexUsageApiError extends Error {
   constructor(
@@ -1273,12 +1279,160 @@ async function fetchThrottledClaudeUsage(rawSession: ClaudeSession, language: La
   return request;
 }
 
-function readGeminiLocalSession(language: Language) {
+/**
+ * Gemini stores no plan on disk, so the tier comes from the same Code Assist
+ * call the Gemini CLI makes at startup. It is an undocumented internal
+ * endpoint, and the CLI's access token goes stale about an hour after its last
+ * run, so a miss is expected rather than exceptional: fall back to the cached
+ * tier and try again later instead of surfacing an error.
+ */
+type GeminiTierResult = { planLabel?: string; unsupportedClient?: boolean };
+
+let geminiPlanState: {
+  nextAttemptAt: number;
+  inFlight: Promise<GeminiTierResult> | null;
+  unsupportedClient: boolean;
+} = {
+  nextAttemptAt: 0,
+  inFlight: null,
+  unsupportedClient: false
+};
+
+function readUnexpiredGeminiCliToken(): string | undefined {
+  if (!isLocalProviderDetectionEnabled()) {
+    return undefined;
+  }
+
   const credentialsPath = path.join(homedir(), ".gemini", "oauth_creds.json");
   if (!existsSync(credentialsPath)) {
+    return undefined;
+  }
+
+  try {
+    const credentials = JSON.parse(readFileSync(credentialsPath, "utf8")) as {
+      access_token?: string;
+      expiry_date?: number;
+    };
+    if (typeof credentials.access_token !== "string" || !credentials.access_token) {
+      return undefined;
+    }
+    const expiresAt = typeof credentials.expiry_date === "number" ? credentials.expiry_date : undefined;
+    if (expiresAt !== undefined && expiresAt <= Date.now() + GEMINI_TOKEN_SKEW_MS) {
+      return undefined;
+    }
+    return credentials.access_token;
+  } catch {
+    return undefined;
+  }
+}
+
+function antigravityConfigDirectory() {
+  return path.join(homedir(), ".gemini", "antigravity-cli");
+}
+
+function isAntigravityConfigured() {
+  return isLocalProviderDetectionEnabled() && existsSync(antigravityConfigDirectory());
+}
+
+function readAntigravityToken(): string | undefined {
+  if (!isAntigravityConfigured()) {
+    return undefined;
+  }
+  return platformAdapter.readAntigravityKeyringToken() ?? undefined;
+}
+
+function readUnexpiredGeminiSavedToken(auth: ProviderAuth | undefined): string | undefined {
+  if (auth?.type !== "oauth" || !auth.accessToken) {
+    return undefined;
+  }
+  if (auth.expiresAt) {
+    const expiresAt = Date.parse(auth.expiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now() + GEMINI_TOKEN_SKEW_MS) {
+      return undefined;
+    }
+  }
+  return auth.accessToken;
+}
+
+async function fetchGeminiTier(accessToken: string): Promise<GeminiTierResult> {
+  const response = await fetch(CODE_ASSIST_LOAD_URL, {
+    method: "POST",
+    signal: globalThis.AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ metadata: { pluginType: "GEMINI" } })
+  });
+
+  if (!response.ok) {
+    return {};
+  }
+
+  const data = (await response.json()) as {
+    currentTier?: { id?: string; name?: string };
+    ineligibleTiers?: Array<{ reasonCode?: string }>;
+  };
+  // Google stopped assigning a current tier to Gemini CLI clients; the account
+  // keeps working only through Antigravity. Report that instead of an empty badge.
+  const unsupportedClient = !data.currentTier &&
+    (data.ineligibleTiers ?? []).some((tier) => tier.reasonCode === "UNSUPPORTED_CLIENT");
+  return {
+    planLabel: formatPlanLabel(data.currentTier?.id) ?? formatPlanLabel(data.currentTier?.name),
+    unsupportedClient
+  };
+}
+
+async function resolveGeminiTier(auth: ProviderAuth | undefined): Promise<GeminiTierResult> {
+  const cached = readCachedPlanLabel("gemini");
+  if (Date.now() < geminiPlanState.nextAttemptAt) {
+    return { planLabel: cached, unsupportedClient: geminiPlanState.unsupportedClient };
+  }
+  if (geminiPlanState.inFlight) {
+    return geminiPlanState.inFlight;
+  }
+
+  const accessToken = readUnexpiredGeminiCliToken() ?? readAntigravityToken() ?? readUnexpiredGeminiSavedToken(auth);
+  if (!accessToken) {
+    geminiPlanState.nextAttemptAt = Date.now() + GEMINI_PLAN_RETRY_MS;
+    return { planLabel: cached, unsupportedClient: geminiPlanState.unsupportedClient };
+  }
+
+  geminiPlanState.inFlight = (async () => {
+    try {
+      const result = await fetchGeminiTier(accessToken);
+      geminiPlanState.unsupportedClient = Boolean(result.unsupportedClient);
+      geminiPlanState.nextAttemptAt = Date.now() +
+        (result.planLabel || result.unsupportedClient ? GEMINI_PLAN_REFRESH_MS : GEMINI_PLAN_RETRY_MS);
+      if (result.planLabel) {
+        writeCachedPlanLabel("gemini", result.planLabel);
+        return result;
+      }
+      return { planLabel: cached, unsupportedClient: result.unsupportedClient };
+    } catch {
+      geminiPlanState.nextAttemptAt = Date.now() + GEMINI_PLAN_RETRY_MS;
+      return { planLabel: cached, unsupportedClient: geminiPlanState.unsupportedClient };
+    } finally {
+      geminiPlanState.inFlight = null;
+    }
+  })();
+  return geminiPlanState.inFlight;
+}
+
+function readGeminiLocalSession(language: Language) {
+  const credentialsPath = path.join(homedir(), ".gemini", "oauth_creds.json");
+  // Gemini CLI keeps its token on disk; Antigravity CLI, which replaces it for
+  // Pro/Ultra and free accounts, keeps nothing there and only leaves a config
+  // directory behind. Either one means the user has a Google session.
+  const hasGeminiCliSession = existsSync(credentialsPath);
+  const hasAntigravitySession = !hasGeminiCliSession && isAntigravityConfigured();
+  if (!hasGeminiCliSession && !hasAntigravitySession) {
     return null;
   }
   const t = getTranslations(language);
+  const sessionMessage = hasGeminiCliSession
+    ? t.usage.geminiOAuthSessionDetected
+    : t.usage.antigravitySessionDetected;
 
   return withReset({
     used: 0,
@@ -1296,7 +1450,7 @@ function readGeminiLocalSession(language: Language) {
         resetsAt: nextLocalMidnight().toISOString(),
         available: false,
         quality: "unavailable",
-        message: t.usage.geminiOAuthSessionDetected
+        message: sessionMessage
       }, language)
     ],
     message: t.usage.geminiApiPending
@@ -1359,10 +1513,26 @@ const adapters: ProviderAdapter[] = PROVIDERS.map((provider) => ({
       return claudeUsage.planLabel ? claudeUsage : { ...claudeUsage, planLabel: session.planLabel };
     }
     if (provider.id === "gemini") {
-      return (
+      const geminiUsage =
         (isLocalProviderDetectionEnabled() ? readGeminiLocalSession(language) : null) ??
-        (auth?.type === "oauth" ? geminiOAuthUsage(language) : seededUsage(provider.id, undefined, language))
-      );
+        (auth?.type === "oauth" ? geminiOAuthUsage(language) : seededUsage(provider.id, undefined, language));
+      if (geminiUsage.connectionStatus !== "connected") {
+        return geminiUsage;
+      }
+      const tier = await resolveGeminiTier(auth);
+      const migrationNote = tier.unsupportedClient
+        ? getTranslations(language).usage.geminiClientUnsupported
+        : undefined;
+      return {
+        ...geminiUsage,
+        ...(tier.planLabel ? { planLabel: tier.planLabel } : {}),
+        ...(migrationNote
+          ? {
+              message: migrationNote,
+              windows: geminiUsage.windows?.map((window) => ({ ...window, message: migrationNote }))
+            }
+          : {})
+      };
     }
     return seededUsage(provider.id, credential, language);
   }

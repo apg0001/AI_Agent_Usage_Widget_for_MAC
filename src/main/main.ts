@@ -37,6 +37,7 @@ import { buildStaticTrayIconSvg, buildUsageTrayIconSvg, TRAY_ICON_RENDER_SIZE } 
 import { destroyTrayIconRenderer, renderSvgToNativeImage } from "./trayIconRenderer.js";
 import { getTrayTitle } from "./trayTitle.js";
 import { UsageHistoryStore } from "./usageHistoryStore.js";
+import { configurePlanCache } from "./planCacheStore.js";
 import { enrichUsageWithInsights } from "./usageInsights.js";
 import { isWithinQuietHours, UsageNotificationDetector, UsageNotificationEvent } from "./usageNotifications.js";
 import { fetchUsageSnapshot, formatRemaining } from "./usageProviders.js";
@@ -542,6 +543,7 @@ if (hasSingleInstanceLock) {
     platformAdapter.hideFromDock(app);
     Menu.setApplicationMenu(null);
     registerIpc();
+    configurePlanCache(app.getPath("userData"));
     usageHistoryStore = new UsageHistoryStore(path.join(app.getPath("userData"), "usage-history.json"));
     createWindow();
     tray = new Tray(await createStaticTrayIcon());

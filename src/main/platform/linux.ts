@@ -1,7 +1,13 @@
 import { App } from "electron";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import {
+  ANTIGRAVITY_KEYRING_ACCOUNT,
+  ANTIGRAVITY_KEYRING_SERVICE,
+  parseAntigravityToken
+} from "./antigravityCredential.js";
 import { PlatformAdapter } from "./types.js";
 
 // Electron의 app.setLoginItemSettings는 Linux를 지원하지 않아 XDG 자동 시작 스펙에 맞춰
@@ -45,11 +51,25 @@ function setLaunchAtLogin(app: App, enabled: boolean): void {
   writeFileSync(AUTOSTART_DESKTOP_FILE, desktopEntry, "utf8");
 }
 
+function readAntigravityKeyringToken(): string | null {
+  try {
+    const secret = execFileSync(
+      "secret-tool",
+      ["lookup", "service", ANTIGRAVITY_KEYRING_SERVICE, "account", ANTIGRAVITY_KEYRING_ACCOUNT],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 3_000 }
+    );
+    return parseAntigravityToken(secret);
+  } catch {
+    return null;
+  }
+}
+
 export const linuxPlatform: PlatformAdapter = {
   id: "linux",
   hideFromDock: () => undefined,
   readClaudeKeychainCredential: () => null,
   writeClaudeKeychainCredential: () => false,
+  readAntigravityKeyringToken,
   getLaunchAtLogin,
   setLaunchAtLogin
 };

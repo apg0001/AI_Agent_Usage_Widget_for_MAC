@@ -20,6 +20,7 @@ export type PlatformAdapter = {
   id: AppPlatform;
   hideFromDock: (app: App) => void;
   readClaudeKeychainCredential: () => ClaudeCredential | null;
+  readAntigravityKeyringToken: () => string | null;
   writeClaudeKeychainCredential: (update: ClaudeCredentialUpdate) => boolean;
   getLaunchAtLogin: (app: App) => boolean;
   setLaunchAtLogin: (app: App, enabled: boolean) => void;

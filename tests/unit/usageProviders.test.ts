@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchUsageSnapshot, formatRemaining, windowLabel } from "../../src/main/usageProviders";
 import { AppSettings } from "../../src/shared/types";
 
@@ -11,6 +11,15 @@ const baseSettings: AppSettings = {
     gemini: { visible: true }
   }
 };
+
+// Gemini 플랜 조회는 Code Assist API를 호출하므로 테스트에서 실제 네트워크로 나가지 않게 막는다.
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new globalThis.Response("{}", { status: 401 })));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("fetchUsageSnapshot", () => {
   it("초기화까지 24시간보다 크면 일/시간/분으로 표시한다", () => {
