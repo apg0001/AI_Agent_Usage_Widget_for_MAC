@@ -106,4 +106,65 @@ describe("Codex 로컬 사용량 읽기", () => {
     expect(jsonlWholeFileReads).toBe(0);
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it("gpt-reserve 같은 보조 한도 레코드는 건너뛰고 기본 codex 한도를 읽는다", async () => {
+    const sessionDirectory = path.join(fakeHome, ".codex", "sessions");
+    mkdirSync(sessionDirectory, { recursive: true });
+    const now = new Date().toISOString();
+    const lines = [
+      // 기본 한도가 먼저 기록되고
+      {
+        timestamp: now,
+        payload: {
+          rate_limits: {
+            limit_id: "codex",
+            primary: { used_percent: 100, resets_in_seconds: 2_145, window_minutes: 300 },
+            secondary: { used_percent: 36, resets_in_seconds: 501_030, window_minutes: 10_080 },
+            plan_type: "plus"
+          }
+        }
+      },
+      // 창이 비어 있는 보조 한도와
+      {
+        timestamp: now,
+        payload: {
+          rate_limits: { limit_id: "premium", primary: null, secondary: null, plan_type: "plus" }
+        }
+      },
+      // 7일짜리 gpt-reserve 레코드가 더 최신으로 뒤따라온다.
+      {
+        timestamp: now,
+        payload: {
+          rate_limits: {
+            limit_id: "base_model_inference",
+            limit_name: "gpt-reserve",
+            primary: { used_percent: 0, resets_in_seconds: 604_800, window_minutes: 10_080 },
+            secondary: null,
+            plan_type: "plus"
+          }
+        }
+      }
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join("\n");
+    writeFileSync(path.join(sessionDirectory, "session.jsonl"), `${lines}\n`, "utf8");
+
+    vi.doMock("node:os", async (importOriginal) => {
+      const original = await importOriginal<typeof import("node:os")>();
+      return { ...original, homedir: () => fakeHome };
+    });
+    vi.stubGlobal("fetch", vi.fn());
+    vi.resetModules();
+    const { fetchUsageSnapshot } = await import("../../src/main/usageProviders");
+
+    const [codex] = await fetchUsageSnapshot(codexOnlySettings);
+
+    expect(codex.source).toBe("local");
+    expect(codex.percent).toBe(100);
+    expect(codex.windows?.map((window) => [window.id, window.percent, window.windowDurationMinutes])).toEqual([
+      ["primary", 100, 300],
+      ["weekly", 36, 10_080]
+    ]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

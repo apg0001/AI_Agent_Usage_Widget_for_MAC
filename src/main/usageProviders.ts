@@ -35,6 +35,7 @@ const CODEX_REQUEST_TIMEOUT_MS = 15_000;
 const CODEX_LOCAL_SCAN_INTERVAL_MS = 60_000;
 const CODEX_LOCAL_FRESHNESS_MS = 2 * 60_000;
 const CODEX_SESSION_TAIL_BYTES = 512 * 1_024;
+const CODEX_MAIN_LIMIT_ID = "codex";
 const CLAUDE_MIN_REFRESH_MS = 60_000;
 const CLAUDE_MAX_BACKOFF_MS = 15 * 60_000;
 const CLAUDE_REQUEST_TIMEOUT_MS = 15_000;
@@ -415,6 +416,16 @@ function readFileTail(file: string, maxBytes = CODEX_SESSION_TAIL_BYTES) {
   return firstLineBreak >= 0 ? text.slice(firstLineBreak + 1) : "";
 }
 
+// 최신 Codex CLI는 gpt-reserve 같은 보조 한도 레코드까지 limit_id를 달아 같은 세션 파일에 남긴다.
+// 위젯이 보여야 하는 값은 기본 codex 한도뿐이므로 그 외 limit_id는 건너뛴다.
+// limit_id가 없던 예전 기록은 항상 기본 한도였으므로 그대로 받는다.
+function isCodexMainRateLimit(rateLimit?: { limit_id?: string | null }) {
+  if (!rateLimit) {
+    return false;
+  }
+  return rateLimit.limit_id == null || rateLimit.limit_id === CODEX_MAIN_LIMIT_ID;
+}
+
 function readLatestCodexUsage(language: Language) {
   const now = Date.now();
   if (now < codexLocalCache.nextScanAt) {
@@ -453,10 +464,14 @@ function readLatestCodexUsage(language: Language) {
                 window_minutes?: number;
               };
               plan_type?: string;
+              limit_id?: string | null;
             };
           };
         };
         const rateLimit = record.payload?.rate_limits;
+        if (!isCodexMainRateLimit(rateLimit)) {
+          continue;
+        }
         const primary = rateLimit?.primary;
         const secondary = rateLimit?.secondary;
         const mainWindow = primary ?? secondary;
