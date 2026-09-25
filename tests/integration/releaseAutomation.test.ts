@@ -42,5 +42,10 @@ describe("릴리스 자동화 계약", () => {
     expect(workflow).toContain("needs: build");
     expect(workflow).toContain("merge-multiple: true");
     expect(workflow).toContain("node scripts/publish-release.js release/assets");
+    expect(workflow).toContain("actions/checkout@v5");
+    expect(workflow).toContain("actions/setup-node@v5");
+    expect(workflow).toContain("actions/upload-artifact@v5");
+    expect(workflow).toContain("actions/download-artifact@v5");
+    expect(workflow).not.toMatch(/actions\/(?:checkout|setup-node|upload-artifact|download-artifact)@v4/);
   });
 });
