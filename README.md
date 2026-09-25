@@ -103,6 +103,10 @@ npm run dev
 
 고치고 싶은 부분이나 추가하고 싶은 기능이 있다면 [이슈](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/issues)로 알려주시거나 PR로 보내주세요. PR을 보낼 때는 [CONTRIBUTING.md](CONTRIBUTING.md)의 브랜치·커밋 규칙을 참고해 주세요.
 
+## 라이선스
+
+GigaCharge는 [MIT 라이선스](LICENSE)로 배포됩니다.
+
 ## 더 읽어보기
 
 - [FEATURES.md](FEATURES.md) — 로그인/사용량 감지가 내부적으로 어떻게 동작하는지

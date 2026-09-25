@@ -103,6 +103,10 @@ Before building, you can verify the repo is in a clean, working state with `npm 
 
 If there's something you'd like fixed or a feature you'd like added, let us know via an [issue](https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC/issues) or send a PR. When sending a PR, please follow the branch/commit conventions in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## License
+
+GigaCharge is distributed under the [MIT License](LICENSE).
+
 ## Further reading
 
 - [FEATURES.md](FEATURES.md) — how sign-in/usage detection works internally
