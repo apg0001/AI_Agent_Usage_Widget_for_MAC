@@ -33,6 +33,31 @@ describe("Electron 런타임 설정", () => {
     expect(main).toContain('backgroundColor: "#f8fafc"');
   });
 
+  it("렌더러를 샌드박스에 격리하고 탐색·팝업·권한 요청을 차단한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const rendererHtml = readFileSync(resolve(process.cwd(), "src/renderer/index.html"), "utf8");
+
+    expect(main).toContain("sandbox: true");
+    expect(main).toContain("devTools: isDev");
+    expect(main).toContain('setWindowOpenHandler(() => ({ action: "deny" }))');
+    expect(main).toContain('on("will-navigate", (event) => event.preventDefault())');
+    expect(main).toContain('on("will-attach-webview", (event) => event.preventDefault())');
+    expect(main).toContain("setPermissionCheckHandler(() => false)");
+    expect(main).toContain("callback(false)");
+    expect(rendererHtml).toContain('http-equiv="Content-Security-Policy"');
+    expect(rendererHtml).toContain("object-src 'none'");
+  });
+
+  it("IPC는 기본 패널의 신뢰된 렌더러에서만 처리한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+
+    expect(main).toContain("function assertTrustedIpcSender(event: IpcMainInvokeEvent)");
+    expect(main).toContain("event.sender !== panel.webContents");
+    expect(main).toContain("assertTrustedIpcSender(event)");
+    expect(main).toContain('registerTrustedIpc("usage:get"');
+    expect(main).not.toContain('ipcMain.handle("usage:get"');
+  });
+
   it("OAuth 브라우저 로그인 IPC를 제공한다", () => {
     const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
     const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
@@ -101,7 +126,7 @@ describe("Electron 런타임 설정", () => {
     ];
 
     for (const channel of channels) {
-      expect(main).toContain(`ipcMain.handle("${channel}"`);
+      expect(main).toContain(`registerTrustedIpc("${channel}"`);
       expect(preload).toContain(`ipcRenderer.invoke("${channel}"`);
     }
 

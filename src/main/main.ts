@@ -1,4 +1,16 @@
-import { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  IpcMainInvokeEvent,
+  Menu,
+  nativeImage,
+  Notification,
+  screen,
+  shell,
+  Tray
+} from "electron";
 import path from "node:path";
 import {
   checkForUpdates,
@@ -82,6 +94,31 @@ const STATUS_PAGE_URLS: Partial<Record<ProviderId, string>> = {
 
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60_000;
 
+function assertTrustedIpcSender(event: IpcMainInvokeEvent) {
+  const panel = window;
+  if (!panel || panel.isDestroyed() || event.sender !== panel.webContents) {
+    throw new Error("IPC request rejected from an untrusted renderer.");
+  }
+}
+
+function registerTrustedIpc<Args extends unknown[], Result>(
+  channel: string,
+  listener: (...args: Args) => Result | Promise<Result>
+) {
+  ipcMain.handle(channel, (event, ...args) => {
+    assertTrustedIpcSender(event);
+    return listener(...(args as Args));
+  });
+}
+
+function hardenRendererWindow(panel: BrowserWindow) {
+  panel.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  panel.webContents.on("will-navigate", (event) => event.preventDefault());
+  panel.webContents.on("will-attach-webview", (event) => event.preventDefault());
+  panel.webContents.session.setPermissionCheckHandler(() => false);
+  panel.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+}
+
 function showWindow() {
   const panel = window;
   if (!panel || panel.isDestroyed()) {
@@ -151,11 +188,14 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      devTools: isDev
     }
   });
 
   const panelWindow = window;
+  hardenRendererWindow(panelWindow);
   detachPanelAutoHideWindowEvents?.();
   panelAutoHide = new PanelAutoHideController(
     () => (window === panelWindow ? panelWindow : null),
@@ -174,7 +214,7 @@ function createWindow() {
       input.key === "F12" ||
       (input.control && input.shift && (input.key === "I" || input.key === "i"))
     );
-    if (isDevToolsShortcut) {
+    if (isDev && isDevToolsShortcut) {
       window?.webContents.toggleDevTools();
     }
   });
@@ -428,71 +468,71 @@ function restartRefreshTimer() {
 }
 
 function registerIpc() {
-  ipcMain.handle("usage:get", async () => latestSnapshot ?? refreshUsage());
-  ipcMain.handle("usage:refresh", async () => refreshUsage());
-  ipcMain.handle("provider:visibility", async (_event, provider: ProviderId, visible: boolean) => {
+  registerTrustedIpc("usage:get", async () => latestSnapshot ?? refreshUsage());
+  registerTrustedIpc("usage:refresh", async () => refreshUsage());
+  registerTrustedIpc("provider:visibility", async (provider: ProviderId, visible: boolean) => {
     setProviderVisibility(provider, visible);
     restartRefreshTimer();
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("settings:menu-bar-display-mode", async (_event, mode: "icons" | "iconsWithPercent") => {
+  registerTrustedIpc("settings:menu-bar-display-mode", async (mode: "icons" | "iconsWithPercent") => {
     setMenuBarDisplayMode(mode);
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("settings:theme", async (_event, theme: AppSettings["theme"]) => {
+  registerTrustedIpc("settings:theme", async (theme: AppSettings["theme"]) => {
     setTheme(theme);
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("settings:language", async (_event, language: AppSettings["language"]) => {
+  registerTrustedIpc("settings:language", async (language: AppSettings["language"]) => {
     setLanguage(language);
     applyLinuxTrayContextMenu();
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("settings:meter-color-bands", async (_event, bands: AppSettings["meterColorBands"]) => {
+  registerTrustedIpc("settings:meter-color-bands", async (bands: AppSettings["meterColorBands"]) => {
     setMeterColorBands(bands);
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("settings:refresh-interval", async (_event, intervalMs: number) => {
+  registerTrustedIpc("settings:refresh-interval", async (intervalMs: number) => {
     setRefreshIntervalMs(intervalMs);
     restartRefreshTimer();
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("settings:notifications", async (_event, notifications: NotificationSettings) => {
+  registerTrustedIpc("settings:notifications", async (notifications: NotificationSettings) => {
     setNotificationSettings(notifications);
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("history:get", (_event, provider: ProviderId, range: UsageHistoryRange) => {
+  registerTrustedIpc("history:get", (provider: ProviderId, range: UsageHistoryRange) => {
     if (!PROVIDERS.some((item) => item.id === provider) || !["24h", "7d", "30d"].includes(range)) {
       throw new Error(getTranslations(getSettings().language).main.unsupportedHistoryRequest);
     }
     return usageHistoryStore?.getProviderHistory(provider, range) ?? { provider, range, points: [] };
   });
-  ipcMain.handle("provider:token-login", async (_event, payload: TokenLoginPayload) => {
+  registerTrustedIpc("provider:token-login", async (payload: TokenLoginPayload) => {
     if (payload.provider !== "codex") {
       throw new Error(getTranslations(getSettings().language).main.tokenLoginCodexOnly);
     }
     setProviderToken(payload.provider, payload.token);
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("provider:oauth-login", async (_event, provider: ProviderId) => {
+  registerTrustedIpc("provider:oauth-login", async (provider: ProviderId) => {
     const result = await startOAuthLogin(provider, getSettings().language);
     const snapshot = await refreshAfterSettingsMutation();
     return { result, snapshot };
   });
-  ipcMain.handle("provider:logout", async (_event, provider: ProviderId) => {
+  registerTrustedIpc("provider:logout", async (provider: ProviderId) => {
     clearProviderAuth(provider);
     return refreshAfterSettingsMutation();
   });
-  ipcMain.handle("app:quit", () => app.quit());
-  ipcMain.handle("app:hide-window", () => {
+  registerTrustedIpc("app:quit", () => app.quit());
+  registerTrustedIpc("app:hide-window", () => {
     window?.hide();
   });
-  ipcMain.handle("app:get-launch-at-login", () => platformAdapter.getLaunchAtLogin(app));
-  ipcMain.handle("app:set-launch-at-login", (_event, enabled: boolean) => {
+  registerTrustedIpc("app:get-launch-at-login", () => platformAdapter.getLaunchAtLogin(app));
+  registerTrustedIpc("app:set-launch-at-login", (enabled: boolean) => {
     platformAdapter.setLaunchAtLogin(app, enabled);
     return platformAdapter.getLaunchAtLogin(app);
   });
-  ipcMain.handle("app:copy-diagnostics", async () => {
+  registerTrustedIpc("app:copy-diagnostics", async () => {
     const snapshot = latestSnapshot ?? await refreshUsage();
     clipboard.writeText(serializeDiagnosticsReport(snapshot, {
       appName: app.getName(),
@@ -504,22 +544,22 @@ function registerIpc() {
     }));
     return true;
   });
-  ipcMain.handle("app:copy-text", (_event, text: string) => {
+  registerTrustedIpc("app:copy-text", (text: string) => {
     clipboard.writeText(text);
     return true;
   });
-  ipcMain.handle("app:open-status-page", async (_event, provider: ProviderId) => {
+  registerTrustedIpc("app:open-status-page", async (provider: ProviderId) => {
     const statusPageUrl = STATUS_PAGE_URLS[provider];
     if (statusPageUrl) {
       await shell.openExternal(statusPageUrl);
     }
   });
-  ipcMain.handle("app:get-version", () => app.getVersion());
-  ipcMain.handle("app:get-update-status", () => getLatestUpdateStatus());
-  ipcMain.handle("app:check-for-updates", () => checkForUpdates());
-  ipcMain.handle("app:quit-and-install-update", () => quitAndInstallUpdate());
-  ipcMain.handle("app:reveal-downloaded-update", () => revealDownloadedUpdate());
-  ipcMain.handle("app:restart", () => {
+  registerTrustedIpc("app:get-version", () => app.getVersion());
+  registerTrustedIpc("app:get-update-status", () => getLatestUpdateStatus());
+  registerTrustedIpc("app:check-for-updates", () => checkForUpdates());
+  registerTrustedIpc("app:quit-and-install-update", () => quitAndInstallUpdate());
+  registerTrustedIpc("app:reveal-downloaded-update", () => revealDownloadedUpdate());
+  registerTrustedIpc("app:restart", () => {
     // 수동 설치는 새 파일이 이미 디스크에 깔려 있어도 실행 중인 프로세스는
     // 옛 버전 그대로다. 새 실행 파일로 다시 뜨려면 `relaunch`가 필요하다.
     app.relaunch();
