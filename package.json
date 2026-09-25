@@ -37,17 +37,15 @@
   ],
   "author": "apg0001 <apg0001@dgu.ac.kr>",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC.git"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "electron-updater": "^6.8.9",
-    "lucide-react": "^0.468.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "vite": "^6.0.7"
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -55,12 +53,17 @@
     "@types/react-dom": "^18.3.5",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
+    "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^43.7.5",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.17.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8",
+    "vite": "^6.0.7",
+    "vitest": "^5.0.2",
     "wait-on": "^8.0.1"
   },
   "build": {
@@ -102,8 +105,8 @@
     }
   },
   "allowScripts": {
-    "electron@33.4.11": true,
+    "electron@43.7.5": true,
     "esbuild@0.25.12": true,
-    "esbuild@0.21.5": true
+    "electron-winstaller@5.4.0": true
   }
 }

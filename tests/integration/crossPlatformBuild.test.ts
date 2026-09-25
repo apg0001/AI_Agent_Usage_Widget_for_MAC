@@ -24,6 +24,28 @@ describe("플랫폼별 빌드 설정", () => {
     expect(packageJson.build.files).not.toContain("dist/**/*");
   });
 
+  it("메인 프로세스 런타임 의존성만 설치본에 포함한다", () => {
+    const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const bundledRendererDependencies = [
+      "@vitejs/plugin-react",
+      "lucide-react",
+      "react",
+      "react-dom",
+      "vite"
+    ];
+
+    expect(packageJson.dependencies).toEqual({
+      "electron-updater": expect.any(String)
+    });
+    for (const dependency of bundledRendererDependencies) {
+      expect(packageJson.dependencies[dependency]).toBeUndefined();
+      expect(packageJson.devDependencies[dependency]).toEqual(expect.any(String));
+    }
+  });
+
   it("플랫폼별 앱 아이콘이 설정되어 있고 실제 파일이 존재한다", () => {
     const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as {
       build: {
