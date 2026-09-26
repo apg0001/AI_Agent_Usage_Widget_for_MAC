@@ -51,6 +51,7 @@ const api = {
   quitAndInstallUpdate: () => ipcRenderer.invoke("app:quit-and-install-update") as Promise<void>,
   revealDownloadedUpdate: () => ipcRenderer.invoke("app:reveal-downloaded-update") as Promise<void>,
   restartApp: () => ipcRenderer.invoke("app:restart") as Promise<void>,
+  setPanelHeight: (height: number) => ipcRenderer.invoke("window:panel-height", height) as Promise<void>,
   onUsageSnapshot: (callback: (snapshot: UsageSnapshot) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: UsageSnapshot) => callback(snapshot);
     ipcRenderer.on("usage:snapshot", listener);

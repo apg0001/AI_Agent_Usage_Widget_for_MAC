@@ -18,7 +18,16 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import { createContext, FormEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  FormEvent,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import {
   DEFAULT_METER_COLOR_BANDS,
   LanguageSetting,
@@ -38,6 +47,7 @@ import {
 } from "../../shared/types";
 import { getTranslations, Translations } from "../../shared/i18n";
 import { buildHistoryAxisTicks, normalizeHistoryPoints } from "./historyAxis";
+import { measureContentHeight } from "./panelMeasure";
 import "./styles.css";
 
 type View =
@@ -1536,7 +1546,48 @@ function SettingsView({
   );
 }
 
+/**
+ * .shell이 뷰포트를 꽉 채우고 .screen-content가 flex: 1이라, 카드를 하나만 켜도 창은
+ * 그대로 640px에 머문다. 스크롤 영역의 실제 콘텐츠 높이를 재서 메인 프로세스에 알려주면
+ * 메인이 그 높이에 맞춰 패널을 줄이고 트레이 기준으로 다시 배치한다.
+ */
+// 토스트와 내용 사이에 남길 여백.
+const TOAST_CLEARANCE = 10;
+
+function useAutoPanelHeight() {
+  const lastSentRef = useRef(0);
+
+  // 카드 개수, 화면 전환, 토스트까지 전부 렌더를 거치므로 매 렌더 후 다시 잰다.
+  useLayoutEffect(() => {
+    const content = document.querySelector<HTMLElement>(".screen-content");
+    if (!content) {
+      return;
+    }
+
+    // 창 높이에서 스크롤 영역의 보이는 높이를 빼면 타이틀바·푸터·여백을 합한 고정
+    // 크롬 높이가 남는다. 여기에 콘텐츠의 실제 높이를 더한 값이 필요한 창 높이다.
+    const chrome = globalThis.innerHeight - content.clientHeight;
+    // 레이아웃이 자리잡기 전에는 크롬 높이가 음수나 0으로 나와 엉뚱하게 큰 값이 계산된다.
+    if (chrome <= 0) {
+      return;
+    }
+
+    // .toast는 position: absolute라 내용 높이에도 크롬 높이에도 잡히지 않는다. 창을 내용에
+    // 딱 맞추면 토스트가 마지막 카드 위를 덮으므로, 떠 있는 동안만 그 높이를 비워둔다.
+    const toast = document.querySelector<HTMLElement>(".toast");
+    const toastAllowance = toast ? toast.offsetHeight + TOAST_CLEARANCE : 0;
+    const desired = Math.ceil(chrome + measureContentHeight(content) + toastAllowance);
+    if (!Number.isFinite(desired) || Math.abs(desired - lastSentRef.current) < 2) {
+      return;
+    }
+
+    lastSentRef.current = desired;
+    void window.aiUsage.setPanelHeight(desired);
+  });
+}
+
 export default function App() {
+  useAutoPanelHeight();
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [view, setView] = useState<View>({ kind: "overview" });
   const [busy, setBusy] = useState(false);

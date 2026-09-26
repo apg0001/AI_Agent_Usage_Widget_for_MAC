@@ -47,9 +47,15 @@ import {
 } from "./settingsStore.js";
 import { buildStaticTrayIconSvg, buildUsageTrayIconSvg, TRAY_ICON_RENDER_SIZE } from "./trayIcon.js";
 import { destroyTrayIconRenderer, renderSvgToNativeImage } from "./trayIconRenderer.js";
+import { createFallbackTrayIcon } from "./trayIconFallback.js";
 import { getTrayTitle } from "./trayTitle.js";
 import { UsageHistoryStore } from "./usageHistoryStore.js";
 import { configurePlanCache } from "./planCacheStore.js";
+import {
+  clampPanelHeight,
+  MAX_PANEL_HEIGHT,
+  PANEL_WIDTH
+} from "./panelGeometry.js";
 import { enrichUsageWithInsights } from "./usageInsights.js";
 import { isWithinQuietHours, UsageNotificationDetector, UsageNotificationEvent } from "./usageNotifications.js";
 import { fetchUsageSnapshot, formatRemaining } from "./usageProviders.js";
@@ -93,6 +99,15 @@ const STATUS_PAGE_URLS: Partial<Record<ProviderId, string>> = {
 };
 
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60_000;
+
+// 패널은 내용 높이에 맞춰 줄어든다. 제공자를 하나만 켜두면 카드 하나 높이로 붙고,
+// 세 개를 다 켜거나 상세 화면처럼 길어지면 상한까지만 커지고 그 안에서 스크롤한다.
+// 렌더러가 레이아웃마다 높이를 보고하므로 프레임 단위로 합쳐서 한 번만 적용한다.
+const PANEL_HEIGHT_COALESCE_MS = 16;
+let requestedPanelHeight: number | null = null;
+let lastAppliedPanelHeight: number | null = null;
+let pendingPanelHeight: number | null = null;
+let panelHeightTimer: ReturnType<typeof setTimeout> | null = null;
 
 function assertTrustedIpcSender(event: IpcMainInvokeEvent) {
   const panel = window;
@@ -167,15 +182,23 @@ async function createStaticTrayIcon() {
     // 메뉴바에 불필요한 흰 여백 블록으로 보이는 문제가 있어 아이콘 자체를 비워둔다.
     return nativeImage.createEmpty();
   }
-  const image = await renderSvgToNativeImage(buildStaticTrayIconSvg(), 32);
-  image.setTemplateImage(true);
-  return image;
+  try {
+    const image = await renderSvgToNativeImage(buildStaticTrayIconSvg(), 32);
+    image.setTemplateImage(true);
+    return image;
+  } catch {
+    // 아이콘을 못 그려도 트레이 자체는 떠야 한다. 여기서 예외가 밖으로 나가면 whenReady
+    // 핸들러가 그 자리에서 끝나 트레이 클릭 핸들러, 갱신 타이머, 서비스 상태 폴링,
+    // 자동 업데이트가 하나도 등록되지 않는다. 빈 이미지를 넘기면 리눅스 인디케이터가
+    // 보이지 않아 앱에 접근할 방법이 사라지므로 내장 PNG를 대신 쓴다.
+    return createFallbackTrayIcon();
+  }
 }
 
 function createWindow() {
   window = new BrowserWindow({
-    width: 420,
-    height: 640,
+    width: PANEL_WIDTH,
+    height: MAX_PANEL_HEIGHT,
     ...(platformAdapter.id === "mac" ? { type: "panel" } : {}),
     show: false,
     resizable: false,
@@ -231,6 +254,7 @@ function createWindow() {
     void window.loadFile(getRendererIndexPath(__dirname));
   }
 
+  lastAppliedPanelHeight = null;
   panelWindow.once("closed", () => {
     if (window !== panelWindow) {
       return;
@@ -250,20 +274,93 @@ function showNotification(options: Electron.NotificationConstructorOptions) {
   notification.show();
 }
 
+function resizePanel(panel: BrowserWindow, height: number) {
+  // getSize를 되읽으면 분수 배율(125%)에서 반올림 때문에 값이 어긋나 매번 다시 적용된다.
+  if (lastAppliedPanelHeight === height) {
+    return;
+  }
+
+  // 윈도우와 리눅스는 resizable: false인 창의 setSize를 무시한다(내부적으로 최소=최대
+  // 크기를 현재 크기로 고정해둔다). 크기를 바꾸는 순간에만 잠깐 풀었다 되돌린다.
+  // macOS에는 그 제약이 없고, 토글이 panel 타입 창의 styleMask를 건드리므로 건너뛴다.
+  const needsResizableToggle = platformAdapter.id !== "mac" && !panel.isResizable();
+  if (needsResizableToggle) {
+    panel.setResizable(true);
+  }
+  panel.setSize(PANEL_WIDTH, height, false);
+  if (needsResizableToggle) {
+    panel.setResizable(false);
+  }
+  lastAppliedPanelHeight = height;
+}
+
+// 패널은 트레이 아이콘에 붙는다. 커서가 있는 디스플레이를 쓰면 마우스를 옆 모니터로
+// 옮긴 사이에 높이 보고가 오는 순간 패널이 트레이와 떨어진 화면으로 튄다.
+// 리눅스에서 Tray.getBounds()는 지원되지 않아 0으로 채운 사각형을 돌려준다. 객체 자체는
+// truthy라 존재 여부만 보면 폴백이 영영 걸리지 않으므로 실제 크기가 있는지로 판단한다.
+function usableTrayBounds() {
+  const bounds = tray?.getBounds();
+  return bounds && bounds.width > 0 && bounds.height > 0 ? bounds : null;
+}
+
+function panelDisplay() {
+  const trayBounds = usableTrayBounds();
+  if (trayBounds) {
+    return screen.getDisplayNearestPoint({
+      x: Math.round(trayBounds.x + trayBounds.width / 2),
+      y: Math.round(trayBounds.y + trayBounds.height / 2)
+    });
+  }
+  return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+}
+
+function applyPanelHeight(height: number) {
+  const panel = window;
+  if (!panel || panel.isDestroyed() || !Number.isFinite(height)) {
+    return;
+  }
+
+  requestedPanelHeight = height;
+  if (!panel.isVisible()) {
+    // 숨어 있을 때는 크기만 맞춰두면 된다. 위치는 다음에 열 때 어차피 다시 잡는다.
+    resizePanel(panel, clampPanelHeight(height, panelDisplay().workArea));
+    return;
+  }
+  // 높이가 바뀌면 트레이 기준 위치도 다시 잡아야 패널이 화면 밖으로 나가지 않는다.
+  positionWindow();
+}
+
+// 렌더러가 레이아웃마다 보고하므로(악의적인 렌더러라면 더 자주) 한 프레임 안의 보고를
+// 모아 마지막 값만 적용한다. 적용 한 번에 동기 OS 호출이 여러 번 일어난다.
+function requestPanelHeight(height: number) {
+  if (!Number.isFinite(height)) {
+    return;
+  }
+
+  pendingPanelHeight = height;
+  if (panelHeightTimer) {
+    return;
+  }
+  panelHeightTimer = setTimeout(() => {
+    panelHeightTimer = null;
+    const next = pendingPanelHeight;
+    pendingPanelHeight = null;
+    if (next !== null) {
+      applyPanelHeight(next);
+    }
+  }, PANEL_HEIGHT_COALESCE_MS);
+}
+
 function positionWindow() {
   if (!window) {
     return;
   }
 
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  const workArea = display.workArea;
-  const preferredHeight = Math.max(1, Math.min(640, workArea.height - 16));
-  const currentBounds = window.getBounds();
-  if (currentBounds.height !== preferredHeight) {
-    window.setSize(currentBounds.width, preferredHeight, false);
-  }
+  const workArea = panelDisplay().workArea;
+  const preferredHeight = clampPanelHeight(requestedPanelHeight ?? MAX_PANEL_HEIGHT, workArea);
+  resizePanel(window, preferredHeight);
   const windowBounds = window.getBounds();
-  const trayBounds = tray?.getBounds();
+  const trayBounds = usableTrayBounds();
   const targetX = trayBounds
     ? Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2)
     : Math.round(workArea.x + workArea.width / 2 - windowBounds.width / 2);
@@ -553,6 +650,9 @@ function registerIpc() {
     if (statusPageUrl) {
       await shell.openExternal(statusPageUrl);
     }
+  });
+  registerTrustedIpc("window:panel-height", (height: number) => {
+    requestPanelHeight(height);
   });
   registerTrustedIpc("app:get-version", () => app.getVersion());
   registerTrustedIpc("app:get-update-status", () => getLatestUpdateStatus());

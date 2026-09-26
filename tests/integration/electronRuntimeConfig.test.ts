@@ -58,6 +58,44 @@ describe("Electron 런타임 설정", () => {
     expect(main).not.toContain('ipcMain.handle("usage:get"');
   });
 
+  it("트레이 아이콘은 표면 없는 창에서도 되는 오프스크린 프레임으로 받는다", () => {
+    const renderer = readFileSync(resolve(process.cwd(), "src/main/trayIconRenderer.ts"), "utf8");
+
+    // 화면에 뜨지 않는 창은 합성 표면이 없어 Electron 43의 capturePage가 UnknownVizError로 거부한다.
+    expect(renderer).toContain("offscreen: true");
+    expect(renderer).toContain('once("paint"');
+    expect(renderer).not.toContain("webContents.capturePage(");
+  });
+
+  it("트레이 아이콘 렌더링이 실패해도 시작 시퀀스를 끝까지 진행한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const createTrayIcon = main.slice(
+      main.indexOf("async function createStaticTrayIcon"),
+      main.indexOf("function createWindow")
+    );
+
+    // 여기서 예외가 새면 whenReady가 중단돼 트레이 클릭·갱신 타이머·자동 업데이트가 등록되지 않는다.
+    expect(createTrayIcon).toContain("renderSvgToNativeImage");
+    // catch 블록 안에서 끝나도록 중괄호를 넘지 않게 묶는다.
+    expect(createTrayIcon).toMatch(/catch\s*\{[^}]*createFallbackTrayIcon\(\)/);
+    expect(createTrayIcon).not.toContain("throw");
+  });
+
+  it("패널 높이를 내용에 맞춰 조절한다", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
+    const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
+    const app = readFileSync(resolve(process.cwd(), "src/renderer/src/App.tsx"), "utf8");
+
+    expect(preload).toContain('ipcRenderer.invoke("window:panel-height"');
+    expect(main).toContain('registerTrustedIpc("window:panel-height"');
+    // 윈도우는 resizable: false인 창의 setSize를 무시하므로 크기 변경 순간에만 풀어야 한다.
+    expect(main).toContain("panel.setResizable(true)");
+    expect(main).toContain("panel.setResizable(false)");
+    // scrollHeight는 내용이 박스보다 짧으면 박스 높이를 돌려줘 창이 줄지 않는다.
+    expect(app).toContain("measureContentHeight");
+    expect(app).not.toContain("content.scrollHeight");
+  });
+
   it("OAuth 브라우저 로그인 IPC를 제공한다", () => {
     const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
     const preload = readFileSync(resolve(process.cwd(), "src/preload/preload.ts"), "utf8");
@@ -96,12 +134,13 @@ describe("Electron 런타임 설정", () => {
     expect(main).not.toContain("UsageResetDetector");
   });
 
-  it("중복 실행을 막고 짧은 화면에 맞춰 팝업 높이를 줄인다", () => {
+  it("중복 실행을 막고 팝업 높이를 화면에 맞춰 좁힌다", () => {
     const main = readFileSync(resolve(process.cwd(), "src/main/main.ts"), "utf8");
 
     expect(main).toContain("app.requestSingleInstanceLock()");
     expect(main).toContain('app.on("second-instance"');
-    expect(main).toContain("Math.min(640, workArea.height - 16)");
+    // 팝업 높이 계산 자체는 tests/unit/panelGeometry.test.ts가 동작으로 검증한다.
+    expect(main).toContain("clampPanelHeight(");
   });
 
   it("패널에서 다른 곳으로 포커스가 이동하면 모든 플랫폼에서 창을 숨긴다", () => {
